@@ -7,18 +7,13 @@ spring:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY}
 
-    # MiniMax MCP 配置
+    # MCP Client 配置 (stdio 模式)
     mcp:
-      servers:
-        minimax:
-          command: uvx
-          args:
-            - minimax-coding-plan-mcp
-            - -y
-          env:
-            MINIMAX_API_KEY: ${MINIMAX_API_KEY}
-            MINIMAX_API_HOST: https://api.minimaxi.com
-            MINIMAX_MCP_BASE_PATH: ${MINIMAX_MCP_BASE_PATH:}
+      client:
+        stdio:
+          servers-configuration: classpath:/mcp-servers.json
+        toolcallback:
+          enabled: true
 
     # 对话记忆配置 (in-memory fallback when no DB)
     # chat:
