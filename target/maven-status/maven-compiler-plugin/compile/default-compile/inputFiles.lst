@@ -1,7 +1,0 @@
-/Users/lss/workspace/workspace-ai/minimal-agent-loop/src/main/java/com/agentloop/AgentApplication.java
-/Users/lss/workspace/workspace-ai/minimal-agent-loop/src/main/java/com/agentloop/config/AgentProperties.java
-/Users/lss/workspace/workspace-ai/minimal-agent-loop/src/main/java/com/agentloop/service/AgentService.java
-/Users/lss/workspace/workspace-ai/minimal-agent-loop/src/main/java/com/agentloop/tools/CurrentDateTool.java
-/Users/lss/workspace/workspace-ai/minimal-agent-loop/src/main/java/com/agentloop/tools/FileReadTool.java
-/Users/lss/workspace/workspace-ai/minimal-agent-loop/src/main/java/com/agentloop/tools/MathTool.java
-/Users/lss/workspace/workspace-ai/minimal-agent-loop/src/main/java/com/agentloop/tools/WebSearchTool.java
