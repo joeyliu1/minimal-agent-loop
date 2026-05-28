@@ -12,8 +12,7 @@ import java.util.List;
 import java.util.Scanner;
 
 @org.springframework.boot.autoconfigure.SpringBootApplication(exclude = {
-        org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration.class,
-        org.springframework.ai.model.chat.memory.repository.jdbc.autoconfigure.JdbcChatMemoryRepositoryAutoConfiguration.class
+        org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration.class
 })
 @EnableConfigurationProperties(AgentProperties.class)
 public class AgentApplication {

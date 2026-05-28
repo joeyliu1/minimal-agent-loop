@@ -6,28 +6,14 @@ spring:
   ai:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY}
-
-    # MCP Client 配置 (stdio 模式)
-    mcp:
-      client:
-        stdio:
-          servers-configuration: classpath:/mcp-servers.json
-        toolcallback:
-          enabled: true
-
-    # 对话记忆配置 (in-memory fallback when no DB)
-    # chat:
-    #   memory:
-    #     repository:
-    #       jdbc:
-    #         initialize-schema: always
-
-  # 数据库配置 (可选，不配置则用内存)
-  # datasource:
-  #   url: jdbc:mysql://localhost:3306/minimal_agent?characterEncoding=utf8&useSSL=false&serverTimezone=UTC
-  #   username: root
-  #   password: ${MYSQL_PASSWORD:123456}
-  #   driver-class-name: com.mysql.cj.jdbc.Driver
+      base-url: ${BASE_URL:https://dashscope.aliyuncs.com}
+      chat:
+        options:
+          model: ${MODEL:qwen-turbo}
+          temperature: ${TEMPERATURE:0.7}
+      embedding:
+        options:
+          model: ${EMBEDDING_MODEL:text-embedding-v3}
 
 server:
   port: 8080
