@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.stereotype.Service;
 
@@ -31,7 +30,6 @@ public class AgentService {
             MathTool mathTool,
             FileReadTool fileReadTool,
             CurrentDateTool currentDateTool,
-            ToolCallbackProvider mcpTools,
             AgentProperties properties
     ) {
         this.chatClient = chatClientBuilder
@@ -42,7 +40,6 @@ public class AgentService {
                     When you have the final answer, respond with a concise text reply.
                     """)
                 .defaultTools(webSearchTool, mathTool, fileReadTool, currentDateTool)
-                .defaultToolCallbacks(mcpTools)
                 .build();
         this.maxSteps = properties.getMaxSteps();
         this.timeoutSeconds = properties.getTimeoutSeconds();
