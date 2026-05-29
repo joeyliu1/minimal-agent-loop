@@ -98,12 +98,17 @@ public class AgentService {
                     // First step: answer based on RAG result, no tool call needed
                     content = chatClient.prompt()
                             .user(String.format("""
-                                    Based on this knowledge base search result:
+                                    You have access to a knowledge base. Here is the search result:
+                                    
+                                    ---
                                     %s
-
-                                    Answer the user's question in Chinese, keeping the answer concise and accurate.
-                                    If the result is relevant, use the information and cite the source.
-                                    If not relevant, say you don't know.
+                                    ---
+                                    
+                                    IMPORTANT: Answer ONLY using the knowledge base result above.
+                                    If the result answers the question, respond with the answer and cite the source like [来源: xxx].
+                                    If the result does NOT answer the question, say "知识库中没有相关信息".
+                                    Do NOT use any other tools. Do NOT make up information.
+                                    
                                     User question: %s
                                     """, ragResult, userMessage))
                             .advisors(new SimpleLoggerAdvisor())
@@ -136,6 +141,7 @@ public class AgentService {
     private boolean isKnowledgeQuestion(String message) {
         String lower = message.toLowerCase();
         return lower.contains("是什么") || lower.contains("什么是")
+                || lower.contains("是谁") || lower.contains("谁在") || lower.contains("查")
                 || lower.contains("介绍") || lower.contains("解释")
                 || lower.contains("原理") || lower.contains("概念")
                 || lower.contains("查一下") || lower.contains("查询")
