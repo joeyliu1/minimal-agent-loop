@@ -1,19 +1,18 @@
 package com.agentloop.tools;
 
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
+
 import java.util.regex.Pattern;
 
-/**
- * Safe math expression evaluator.
- * Uses a recursive-descent parser to prevent code injection.
- */
 @Component
 public class MathTool {
 
     private static final Pattern SAFE_CHARS = Pattern.compile("^[\\d\\s+\\-*/().%]+$");
 
-    @org.springframework.ai.tool.annotation.Tool(name = "calculator", description = "Evaluate a safe math expression")
-    public String evaluate(@org.springframework.ai.tool.annotation.ToolParam(description = "math expression, e.g. 2+2 or (3*4)-1") String expression) {
+    @Tool(name = "calculator", description = "Evaluate a safe math expression")
+    public String evaluate(@ToolParam(description = "math expression, e.g. 2+2 or (3*4)-1") String expression) {
         if (expression == null || !SAFE_CHARS.matcher(expression).matches()) {
             return "[error] invalid characters in expression";
         }
