@@ -9,7 +9,7 @@ spring:
       base-url: ${BASE_URL:https://dashscope.aliyuncs.com}
       chat:
         options:
-          model: ${MODEL:qwen-turbo}
+          model: ${MODEL:qwen3.5-plus}
           temperature: ${TEMPERATURE:0.7}
       embedding:
         options:
