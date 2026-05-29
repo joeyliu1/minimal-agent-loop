@@ -1,5 +1,6 @@
 package com.agentloop.tools;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -7,12 +8,14 @@ import org.springframework.stereotype.Component;
 import java.util.regex.Pattern;
 
 @Component
+@Slf4j
 public class MathTool {
 
     private static final Pattern SAFE_CHARS = Pattern.compile("^[\\d\\s+\\-*/().%]+$");
 
     @Tool(name = "calculator", description = "Evaluate a safe math expression")
     public String evaluate(@ToolParam(description = "math expression, e.g. 2+2 or (3*4)-1") String expression) {
+        log.info("MathTool invoked");
         if (expression == null || !SAFE_CHARS.matcher(expression).matches()) {
             return "[error] invalid characters in expression";
         }

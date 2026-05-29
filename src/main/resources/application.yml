@@ -16,7 +16,7 @@ spring:
           model: ${EMBEDDING_MODEL:text-embedding-v3}
 
 server:
-  port: 8080
+  port: 8085
 
 agent:
   max-steps: 10
