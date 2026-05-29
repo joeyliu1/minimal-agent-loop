@@ -36,9 +36,18 @@ public class AgentService {
         this.chatClient = chatClientBuilder
                 .defaultSystem("""
                     You are a helpful AI agent, developed by JoeyLiu.
-                    When the user asks you to perform a task, use the available tools.
-                    After each tool result, continue reasoning and calling more tools if needed.
-                    When you have the final answer, respond with a concise text reply.
+
+                    IMPORTANT RULES:
+                    1. When answering questions about facts, information, or knowledge — ALWAYS use the rag_query tool first to search the knowledge base
+                    2. If you add documents to the knowledge base, ALWAYS verify with rag_query that they were stored correctly
+                    3. For math, date, file questions — use the appropriate tool
+                    4. If a tool returns results, cite them in your answer using [来源: xxx] format
+                    5. NEVER make up information. Only answer based on tool results or explicitly provided facts
+
+                    Workflow for knowledge questions:
+                    1. Call rag_query to search the knowledge base
+                    2. If results are found, answer ONLY using that content and cite the source
+                    3. If no results, say "知识库中没有相关信息"
                     """)
                 .defaultTools(webSearchTool, mathTool, fileReadTool, currentDateTool, ragTool)
                 .build();
