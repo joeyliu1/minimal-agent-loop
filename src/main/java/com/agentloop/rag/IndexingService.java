@@ -4,9 +4,11 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Indexing pipeline: chunk → embed → store in vector store.
@@ -17,6 +19,10 @@ public class IndexingService {
 
     private final VectorStore vectorStore;
     private final DocumentChunker chunker;
+    // In-memory document registry for listing/clearing
+    private final List<DocumentRecord> documentRegistry = new ArrayList<>();
+
+    private record DocumentRecord(String id, String content, String source) {}
 
     public IndexingService(VectorStore vectorStore, DocumentChunker chunker) {
         this.vectorStore = vectorStore;
@@ -52,6 +58,10 @@ public class IndexingService {
                 .collect(java.util.stream.Collectors.toList());
 
         vectorStore.add(documents);
+        // Track in registry
+        for (DocumentChunker.DocumentChunk chunk : chunks) {
+            documentRegistry.add(new DocumentRecord(chunk.id(), chunk.content(), source));
+        }
     }
 
     /**
@@ -64,5 +74,26 @@ public class IndexingService {
         for (int i = 0; i < contents.size(); i++) {
             indexDocument(contents.get(i), sources.get(i));
         }
+    }
+
+    public void addDocument(String content, String source) {
+        indexDocument(content, source);
+    }
+
+    public void clear() {
+        // Delete all tracked documents from vector store
+        List<Document> allDocs = documentRegistry.stream()
+                .map(r -> new Document(r.id(), r.content(), Map.of("source", r.source())))
+                .toList();
+        if (!allDocs.isEmpty()) {
+            vectorStore.delete(allDocs.stream().map(Document::getId).toList());
+        }
+        documentRegistry.clear();
+    }
+
+    public List<Map<String, String>> listDocuments() {
+        return documentRegistry.stream()
+                .map(r -> Map.of("id", r.id(), "content", r.content(), "source", r.source()))
+                .toList();
     }
 }

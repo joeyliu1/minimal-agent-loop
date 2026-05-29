@@ -113,6 +113,31 @@
             border-color: #00d4ff;
             transform: translateX(5px);
         }
+
+        .add-form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .add-form input {
+            padding: 10px 12px;
+            background: #1e1e3f;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .add-form input:focus {
+            border-color: #00d4ff;
+        }
+
+        .add-form input::placeholder {
+            color: #555;
+        }
         
         .tool-btn .desc {
             display: block;
@@ -350,22 +375,13 @@
             
             <div class="tool-section">
                 <h4>📚 知识库</h4>
-                <button class="tool-btn" onclick="sendMessage('把\"Spring AI 是一个 AI 集成框架\"加入知识库')">
-                    添加文档
-                    <span class="desc">单条文档入库</span>
-                </button>
-                <button class="tool-btn" onclick="sendMessage('什么是 Spring AI？')">
-                    查询知识
-                    <span class="desc">RAG 检索问答</span>
-                </button>
-                <button class="tool-btn" onclick="sendMessage('把\"Java 是一门面向对象编程语言\"加入知识库')">
-                    添加 Java 知识
-                    <span class="desc">测试多条目</span>
-                </button>
-                <button class="tool-btn" onclick="sendMessage('什么是 Java？')">
-                    查询 Java
-                    <span class="desc">验证多文档</span>
-                </button>
+                <div class="add-form">
+                    <input type="text" id="docContent" placeholder="输入文档内容..." />
+                    <input type="text" id="docSource" placeholder="来源（可选）" />
+                    <button class="tool-btn" onclick="addDocument()">➕ 添加</button>
+                </div>
+                <button class="tool-btn" onclick="listDocuments()">📋 查看条目</button>
+                <button class="tool-btn" onclick="clearKnowledgeBase()">🗑️ 清空知识库</button>
             </div>
             
             <div class="tool-section">
@@ -500,7 +516,53 @@
                 </div>
             `;
         }
-        
+
+        function addDocument() {
+            const content = document.getElementById('docContent').value.trim();
+            const source = document.getElementById('docSource').value.trim() || '用户添加';
+            if (!content) {
+                alert('请输入文档内容');
+                return;
+            }
+            fetch('/api/rag/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content, source })
+            })
+            .then(res => res.json())
+            .then(data => {
+                addMessage(`[知识库] ${data.message}`, 'agent');
+                document.getElementById('docContent').value = '';
+                document.getElementById('docSource').value = '';
+            })
+            .catch(err => addMessage('[错误] ' + err.message, 'agent'));
+        }
+
+        function listDocuments() {
+            fetch('/api/rag/list')
+            .then(res => res.json())
+            .then(data => {
+                if (data.count === 0) {
+                    addMessage('[知识库] 当前知识库为空', 'agent');
+                } else {
+                    let msg = `[知识库] 共 ${data.count} 条文档：\n`;
+                    data.documents.forEach((doc, i) => {
+                        msg += `\n${i + 1}. [${doc.source}] ${doc.content}`;
+                    });
+                    addMessage(msg, 'agent');
+                }
+            })
+            .catch(err => addMessage('[错误] ' + err.message, 'agent'));
+        }
+
+        function clearKnowledgeBase() {
+            if (!confirm('确定要清空知识库吗？此操作不可恢复。')) return;
+            fetch('/api/rag/clear', { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => addMessage('[知识库] ' + data.message, 'agent'))
+            .catch(err => addMessage('[错误] ' + err.message, 'agent'));
+        }
+
         document.getElementById('messageInput').focus();
     </script>
 </body>
