@@ -1,6 +1,8 @@
 package com.agentloop.controller;
 
 import com.agentloop.service.AgentService;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -18,8 +20,8 @@ public class WebController {
     }
 
     @GetMapping("/")
-    public String index() {
-        return "redirect:/index.html";
+    public void index(HttpServletResponse response) throws Exception {
+        response.sendRedirect("/index.html");
     }
 
     @PostMapping("/api/chat")
