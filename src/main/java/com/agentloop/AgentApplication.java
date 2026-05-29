@@ -8,11 +8,11 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import com.agentloop.config.AgentProperties;
 import com.agentloop.service.AgentService;
-import java.util.List;
+
 import java.util.Scanner;
 
-@org.springframework.boot.autoconfigure.SpringBootApplication(exclude = {
-        org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration.class
+@SpringBootApplication(exclude = {
+        DataSourceAutoConfiguration.class
 })
 @EnableConfigurationProperties(AgentProperties.class)
 public class AgentApplication {

@@ -140,6 +140,11 @@ public class AgentService {
      */
     private boolean isKnowledgeQuestion(String message) {
         String lower = message.toLowerCase();
+        // Questions about the agent itself should NOT use RAG
+        if (lower.contains("你是谁") || lower.contains("你是干什么") || lower.contains("你能做")
+                || lower.contains("介绍一下你") || lower.contains("关于你")) {
+            return false;
+        }
         return lower.contains("是什么") || lower.contains("什么是")
                 || lower.contains("是谁") || lower.contains("谁在") || lower.contains("查")
                 || lower.contains("介绍") || lower.contains("解释")
