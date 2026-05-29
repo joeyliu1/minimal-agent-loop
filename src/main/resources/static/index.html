@@ -470,12 +470,10 @@
                 '<div class="message agent"><div class="avatar">AI</div><div class="message-content">对话已清空，开始新对话吧！</div></div>';
         }
 
-        // ── Page toggle ───────────────────────────────────────
-        function showKnowledgePage() {
-            document.getElementById('chatPage').style.display = 'none';
-            document.getElementById('knowledgePage').style.display = 'block';
-            showKnowledgeTab('upload');
-        }
+        // Knowledge page - open as full page
+                function showKnowledgePage() {
+                    window.location.href = '/knowledge.html';
+                }
 
         function showChatPage() {
             document.getElementById('knowledgePage').style.display = 'none';
