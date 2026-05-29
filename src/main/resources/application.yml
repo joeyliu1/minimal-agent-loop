@@ -15,15 +15,6 @@ spring:
         options:
           model: ${EMBEDDING_MODEL:text-embedding-v3}
 
-# Milvus Vector Store 配置 (RAG)
-milvus:
-  host: ${MILVUS_HOST:localhost}
-  port: ${MILVUS_PORT:19530}
-  collection: ${MILVUS_COLLECTION:agent_docs}
-  dimension: ${MILVUS_DIMENSION:1536}
-  username: ${MILVUS_USERNAME:}
-  password: ${MILVUS_PASSWORD:}
-
 server:
   port: 8085
 
