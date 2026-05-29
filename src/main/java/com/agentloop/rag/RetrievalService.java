@@ -63,23 +63,34 @@ public class RetrievalService {
             return "No relevant documents found. Please try a different query.";
         }
 
-        String context = docs.stream()
-                .map(d -> String.format("[%s] %s", d.source(), d.content()))
-                .collect(Collectors.joining("\n\n"));
+        // Build context with clear source markers
+        StringBuilder contextBuilder = new StringBuilder();
+        for (int i = 0; i < docs.size(); i++) {
+            RetrievedDocument d = docs.get(i);
+            contextBuilder.append(String.format("【文档%d - 来源: %s】\n%s\n\n",
+                    i + 1, d.source(), d.content()));
+        }
+        String context = contextBuilder.toString().trim();
 
         PromptTemplate template = new PromptTemplate("""
-                Context:
+                你是一个基于知识库回答问题的助手。
+
+                ## 知识库内容
                 {context}
 
-                Question: {question}
+                ## 用户问题
+                {question}
 
-                Answer the question based on the context above. Cite your sources like this: [source]
+                ## 回答要求
+                1. 只根据知识库中的内容回答，不要编造信息
+                2. 如果知识库中没有相关信息，直接回复"知识库中没有相关信息"
+                3. 回答时必须在末尾附上来源，格式：[来源: xxx]
+                4. 如果使用了多条文档，每个来源都要标注
                 """);
 
         Prompt prompt = template.create(Map.of("context", context, "question", query));
 
         String answer = chatClient.prompt(prompt)
-                .user(query)
                 .call()
                 .content();
 
