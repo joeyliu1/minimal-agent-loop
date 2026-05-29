@@ -73,19 +73,20 @@ public class RetrievalService {
         String context = contextBuilder.toString().trim();
 
         PromptTemplate template = new PromptTemplate("""
-                你是一个基于知识库回答问题的助手。
+                你是一个严格的问答助手。
 
-                ## 知识库内容
+                ## 知识库（这是你唯一的参考来源）
                 {context}
 
                 ## 用户问题
                 {question}
 
-                ## 回答要求
-                1. 只根据知识库中的内容回答，不要编造信息
-                2. 如果知识库中没有相关信息，直接回复"知识库中没有相关信息"
-                3. 回答时必须在末尾附上来源，格式：[来源: xxx]
-                4. 如果使用了多条文档，每个来源都要标注
+                ## 严格规则
+                1. 只使用知识库中存在的文字来回答，不要添加任何知识库中没有的信息
+                2. 如果知识库中没有能回答问题的内容，回复："抱歉，知识库中没有相关信息"
+                3. 回答中的事实必须来自知识库，禁止编造或补充
+                4. 在回答末尾必须标注来源，格式：[来源: xxx]
+                5. 如果使用了多条文档，标注所有来源：[来源: xxx] [来源: yyy]
                 """);
 
         Prompt prompt = template.create(Map.of("context", context, "question", query));
