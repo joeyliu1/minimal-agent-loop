@@ -30,6 +30,7 @@ public class AgentService {
             MathTool mathTool,
             FileReadTool fileReadTool,
             CurrentDateTool currentDateTool,
+            RagTool ragTool,
             AgentProperties properties
     ) {
         this.chatClient = chatClientBuilder
@@ -39,7 +40,7 @@ public class AgentService {
                     After each tool result, continue reasoning and calling more tools if needed.
                     When you have the final answer, respond with a concise text reply.
                     """)
-                .defaultTools(webSearchTool, mathTool, fileReadTool, currentDateTool)
+                .defaultTools(webSearchTool, mathTool, fileReadTool, currentDateTool, ragTool)
                 .build();
         this.maxSteps = properties.getMaxSteps();
         this.timeoutSeconds = properties.getTimeoutSeconds();
