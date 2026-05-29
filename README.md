@@ -70,7 +70,7 @@ minimal-agent-loop/
 export AI_DASHSCOPE_API_KEY=your-api-key-here
 
 # 可选：切换模型
-export MODEL=qwen-plus
+export MODEL=qwen3-max
 export TEMPERATURE=0.7
 ```
 
@@ -161,7 +161,7 @@ public class MathTool {
 | 配置项 | 环境变量 | 说明 |
 |--------|----------|------|
 | `spring.ai.dashscope.api-key` | `AI_DASHSCOPE_API_KEY` | 通义千问 API Key（必填） |
-| `spring.ai.dashscope.chat.options.model` | `MODEL` | 模型名称，默认 qwen-plus |
+| `spring.ai.dashscope.chat.options.model` | `MODEL` | 模型名称，默认 qwen3-max |
 | `spring.ai.dashscope.chat.options.temperature` | `TEMPERATURE` | 生成温度参数，默认 0.7 |
 | `spring.ai.dashscope.embedding.options.model` | `EMBEDDING_MODEL` | 嵌入模型，默认 text-embedding-v3 |
 | `agent.max-steps` | — | Agent 最大执行步数，默认 10 |
@@ -185,7 +185,7 @@ spring:
     dashscope:
       chat:
         options:
-          model: qwen-plus   # 切换为更强模型
+          model: qwen3-max   # 切换为更强模型
 ```
 
 ### 启用 Milvus 向量存储
