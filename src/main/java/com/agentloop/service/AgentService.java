@@ -95,9 +95,13 @@ public class AgentService {
             try {
                 String content;
                 if (ragResult != null && step == 0) {
-                    // First step: answer based on RAG result, no tool call needed
-                    content = chatClient.prompt()
-                            .user(String.format("""
+                    String ragLower = ragResult.toLowerCase();
+                    boolean ragHasContent = !ragLower.contains("没有相关信息") && !ragLower.contains("no relevant");
+                    
+                    if (ragHasContent) {
+                        // RAG found relevant content, use it
+                        content = chatClient.prompt()
+                                .user(String.format("""
                                     You have access to a knowledge base. Here is the search result:
                                     
                                     ---
@@ -106,15 +110,20 @@ public class AgentService {
                                     
                                     IMPORTANT: Answer ONLY using the knowledge base result above.
                                     If the result answers the question, respond with the answer and cite the source like [来源: xxx].
-                                    If the result does NOT answer the question, say "知识库中没有相关信息".
-                                    Do NOT use any other tools. Do NOT make up information.
+                                    If the result does NOT answer the question, say "知识库中没有相关信息，我将用我的知识来回答"。
+                                    Do NOT make up information.
                                     
                                     User question: %s
                                     """, ragResult, userMessage))
-                            .advisors(new SimpleLoggerAdvisor())
-                            .call()
-                            .content();
-                    ragResult = null; // Only use RAG result on first step
+                                .advisors(new SimpleLoggerAdvisor())
+                                .call()
+                                .content();
+                    } else {
+                        // RAG found nothing, fall back to normal LLM
+                        log.info("RAG found no relevant content, falling back to LLM...");
+                        content = null; // force next step to use LLM
+                    }
+                    ragResult = null;
                 } else {
                     content = chatClient.prompt()
                             .user(userMessage)
