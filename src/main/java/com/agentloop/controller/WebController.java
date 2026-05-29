@@ -26,6 +26,11 @@ public class WebController {
         response.sendRedirect("/index.html");
     }
 
+    @GetMapping("/knowledge")
+    public void knowledge(HttpServletResponse response) throws Exception {
+        response.sendRedirect("/knowledge.html");
+    }
+
     @PostMapping("/api/chat")
     public Map<String, String> chat(@RequestBody Map<String, String> request) {
         String message = request.get("message");
@@ -45,6 +50,12 @@ public class WebController {
     public Map<String, String> ragClear() {
         indexingService.clear();
         return Map.of("status", "ok", "message", "知识库已清空");
+    }
+
+    @DeleteMapping("/api/rag/delete")
+    public Map<String, String> ragDelete(@RequestParam("id") String id) {
+        indexingService.deleteDocument(id);
+        return Map.of("status", "ok", "message", "已删除");
     }
 
     @GetMapping("/api/rag/list")

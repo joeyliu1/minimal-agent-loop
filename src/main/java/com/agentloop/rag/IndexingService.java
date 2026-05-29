@@ -80,13 +80,16 @@ public class IndexingService {
         indexDocument(content, source);
     }
 
+    public void deleteDocument(String id) {
+        documentRegistry.removeIf(r -> r.id().equals(id));
+        vectorStore.delete(List.of(id));
+    }
+
     public void clear() {
         // Delete all tracked documents from vector store
-        List<Document> allDocs = documentRegistry.stream()
-                .map(r -> new Document(r.id(), r.content(), Map.of("source", r.source())))
-                .toList();
-        if (!allDocs.isEmpty()) {
-            vectorStore.delete(allDocs.stream().map(Document::getId).toList());
+        List<String> allIds = documentRegistry.stream().map(DocumentRecord::id).toList();
+        if (!allIds.isEmpty()) {
+            vectorStore.delete(allIds);
         }
         documentRegistry.clear();
     }

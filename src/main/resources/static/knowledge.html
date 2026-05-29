@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库管理 - Agent Loop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0f0f1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px 30px;
+            border-bottom: 1px solid #2a2a4a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .back-btn {
+            padding: 10px 20px;
+            background: #1e1e3f;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .back-btn:hover {
+            background: #2a2a5a;
+            border-color: #00d4ff;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+        
+        .card {
+            background: #13132a;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .card h2 {
+            font-size: 18px;
+            color: #00d4ff;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        
+        .add-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .add-form input {
+            padding: 12px 15px;
+            background: #1e1e3f;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .add-form input:focus {
+            border-color: #00d4ff;
+        }
+        
+        .add-form input::placeholder {
+            color: #555;
+        }
+        
+        .add-form textarea {
+            padding: 12px 15px;
+            background: #1e1e3f;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 14px;
+            outline: none;
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        
+        .add-form textarea:focus {
+            border-color: #00d4ff;
+        }
+        
+        .add-form .btn-row {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #0f0f1a;
+        }
+        
+        .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.3);
+        }
+        
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat {
+            background: #1e1e3f;
+            padding: 15px 25px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat .number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+        
+        .stat .label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .doc-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .doc-item {
+            background: #1e1e3f;
+            border: 1px solid #2a2a4a;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 15px;
+        }
+        
+        .doc-item:hover {
+            border-color: #3a3a6a;
+        }
+        
+        .doc-content {
+            flex: 1;
+        }
+        
+        .doc-content .text {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #e0e0e0;
+            word-break: break-word;
+        }
+        
+        .doc-content .source {
+            font-size: 12px;
+            color: #00d4ff;
+            margin-top: 8px;
+        }
+        
+        .doc-content .meta {
+            font-size: 11px;
+            color: #555;
+            margin-top: 5px;
+        }
+        
+        .doc-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        
+        .doc-actions button {
+            padding: 8px 12px;
+            background: #2a2a4a;
+            border: none;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .doc-actions button:hover {
+            background: #dc2626;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 50px;
+            color: #555;
+        }
+        
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 25px;
+            background: #1e1e3f;
+            border: 1px solid #00d4ff;
+            border-radius: 10px;
+            color: #e0e0e0;
+            font-size: 14px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+        }
+        
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .toast.error {
+            border-color: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>📚 知识库管理</h1>
+        <a href="/index.html" class="back-btn">← 返回控制台</a>
+    </header>
+    
+    <div class="container">
+        <div class="card">
+            <h2>➕ 添加文档</h2>
+            <div class="add-form">
+                <input type="text" id="docSource" placeholder="来源（标题）">
+                <textarea id="docContent" placeholder="文档内容..."></textarea>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="addDocument()">添加</button>
+                    <button class="btn btn-danger" onclick="clearAll()">清空全部</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📋 文档列表</h2>
+            <div class="stats">
+                <div class="stat">
+                    <div class="number" id="docCount">0</div>
+                    <div class="label">文档数量</div>
+                </div>
+            </div>
+            <div class="doc-list" id="docList">
+                <div class="empty-state">
+                    <div class="icon">📭</div>
+                    <div>知识库为空，添加你的第一条文档吧</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        let documents = [];
+        
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast' + (isError ? ' error' : '');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+        
+        function loadDocuments() {
+            fetch('/api/rag/list')
+            .then(res => res.json())
+            .then(data => {
+                documents = data.documents || [];
+                renderList();
+            })
+            .catch(err => showToast('加载失败: ' + err.message, true));
+        }
+        
+        function renderList() {
+            document.getElementById('docCount').textContent = documents.length;
+            const list = document.getElementById('docList');
+            
+            if (documents.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📭</div>
+                        <div>知识库为空，添加你的第一条文档吧</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = documents.map((doc, i) => `
+                <div class="doc-item">
+                    <div class="doc-content">
+                        <div class="text">${escapeHtml(doc.content)}</div>
+                        <div class="source">来源: ${escapeHtml(doc.source)}</div>
+                        <div class="meta">ID: ${doc.id.substring(0, 8)}...</div>
+                    </div>
+                    <div class="doc-actions">
+                        <button onclick="deleteDoc('${doc.id}')">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function addDocument() {
+            const content = document.getElementById('docContent').value.trim();
+            const source = document.getElementById('docSource').value.trim() || '用户添加';
+            if (!content) {
+                showToast('请输入文档内容', true);
+                return;
+            }
+            
+            fetch('/api/rag/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content, source })
+            })
+            .then(res => res.json())
+            .then(data => {
+                showToast('添加成功');
+                document.getElementById('docContent').value = '';
+                loadDocuments();
+            })
+            .catch(err => showToast('添加失败: ' + err.message, true));
+        }
+        
+        function deleteDoc(id) {
+            if (!confirm('确定删除这条文档？')) return;
+            fetch(`/api/rag/delete?id=${id}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                showToast('删除成功');
+                loadDocuments();
+            })
+            .catch(err => showToast('删除失败: ' + err.message, true));
+        }
+        
+        function clearAll() {
+            if (!confirm('确定清空全部文档？此操作不可恢复。')) return;
+            fetch('/api/rag/clear', { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                showToast('已清空全部文档');
+                loadDocuments();
+            })
+            .catch(err => showToast('清空失败: ' + err.message, true));
+        }
+        
+        loadDocuments();
+    </script>
+</body>
+</html>
