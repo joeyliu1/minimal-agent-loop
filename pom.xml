@@ -53,17 +53,16 @@
 
         <!-- Chat Memory -->
 
-        <!-- MySQL for Chat Memory (可选，不使用时可注释掉)
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-jdbc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <version>8.0.33</version>
-        </dependency>
-        -->
+                <!-- MySQL for Chat Memory -->
+                <dependency>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-jdbc</artifactId>
+                </dependency>
+                <dependency>
+                    <groupId>com.mysql</groupId>
+                    <artifactId>mysql-connector-j</artifactId>
+                    <version>8.0.33</version>
+                </dependency>
 
         <!-- Lombok -->
         <dependency>

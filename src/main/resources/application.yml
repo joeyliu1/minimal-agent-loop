@@ -2,6 +2,18 @@ spring:
   application:
     name: minimal-agent-loop
 
+  # MySQL 数据库配置
+  datasource:
+    url: jdbc:mysql://localhost:3306/minimal-agent-loop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # 启动时自动创建数据库表
+  sql:
+    init:
+      mode: always
+
   # 通义千问 API配置
   ai:
     dashscope:

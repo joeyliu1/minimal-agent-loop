@@ -32,7 +32,7 @@ public class RagTool {
             @ToolParam(description = "The document content to add") String content,
             @ToolParam(description = "The source or title of the document") String source
     ) {
-        indexingService.indexDocument(content, source);
+        indexingService.addDocument(content, source);
         return "Document added successfully: " + source;
     }
 
@@ -41,7 +41,9 @@ public class RagTool {
             @ToolParam(description = "List of document contents") List<String> contents,
             @ToolParam(description = "List of sources/titles") List<String> sources
     ) {
-        indexingService.indexDocuments(contents, sources);
+        for (int i = 0; i < contents.size(); i++) {
+            indexingService.addDocument(contents.get(i), sources.get(i));
+        }
         return "Added " + contents.size() + " documents successfully";
     }
 }

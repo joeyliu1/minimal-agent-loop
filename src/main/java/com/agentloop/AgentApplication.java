@@ -11,9 +11,7 @@ import com.agentloop.service.AgentService;
 
 import java.util.Scanner;
 
-@SpringBootApplication(exclude = {
-        DataSourceAutoConfiguration.class
-})
+@SpringBootApplication
 @EnableConfigurationProperties(AgentProperties.class)
 public class AgentApplication {
 

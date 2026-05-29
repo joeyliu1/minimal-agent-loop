@@ -1,89 +1,81 @@
 package com.agentloop.memory;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 /**
  * Short-term memory: conversation context within a session.
- * Uses a sliding window to keep recent messages.
+ * Uses MySQL to persist chat history across restarts.
  */
 @Service
 public class ChatMemoryService {
 
+    private final JdbcTemplate jdbc;
     private static final int DEFAULT_WINDOW_SIZE = 20;
 
-    private final int windowSize;
-    private final Map<String, LinkedList<ChatMessage>> sessionMemories = new ConcurrentHashMap<>();
-
-    public ChatMemoryService() {
-        this(DEFAULT_WINDOW_SIZE);
-    }
-
-    public ChatMemoryService(int windowSize) {
-        this.windowSize = windowSize;
+    public ChatMemoryService(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
     }
 
     /**
      * Add a message to session memory.
      */
     public void addMessage(String sessionId, String role, String content) {
-        sessionMemories.computeIfAbsent(sessionId, k -> new LinkedList<>())
-                .addLast(new ChatMessage(role, content));
-        trimWindow(sessionId);
+        jdbc.update(
+            "INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)",
+            sessionId, role, content
+        );
     }
 
     /**
      * Get recent messages for a session.
      */
     public List<ChatMessage> getRecentMessages(String sessionId) {
-        return new ArrayList<>(sessionMemories.getOrDefault(sessionId, new LinkedList<>()));
+        return getRecentMessages(sessionId, DEFAULT_WINDOW_SIZE);
     }
 
     /**
      * Get recent N messages.
      */
     public List<ChatMessage> getRecentMessages(String sessionId, int count) {
-        LinkedList<ChatMessage> messages = sessionMemories.getOrDefault(sessionId, new LinkedList<>());
-        int size = messages.size();
-        if (count >= size) {
-            return new ArrayList<>(messages);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
+            sessionId, count
+        );
+        List<ChatMessage> messages = new ArrayList<>();
+        for (int i = rows.size() - 1; i >= 0; i--) {
+            Map<String, Object> row = rows.get(i);
+            messages.add(new ChatMessage((String) row.get("role"), (String) row.get("content")));
         }
-        return new ArrayList<>(messages.subList(size - count, size));
+        return messages;
     }
 
     /**
      * Clear session memory.
      */
     public void clearSession(String sessionId) {
-        sessionMemories.remove(sessionId);
+        jdbc.update("DELETE FROM chat_messages WHERE session_id = ?", sessionId);
     }
 
     /**
      * Clear all memories.
      */
     public void clearAll() {
-        sessionMemories.clear();
+        jdbc.update("DELETE FROM chat_messages");
     }
 
     /**
      * Get session count.
      */
     public int getSessionCount() {
-        return sessionMemories.size();
-    }
-
-    private void trimWindow(String sessionId) {
-        LinkedList<ChatMessage> messages = sessionMemories.get(sessionId);
-        if (messages != null && messages.size() > windowSize) {
-            while (messages.size() > windowSize) {
-                messages.removeFirst();
-            }
-        }
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(DISTINCT session_id) FROM chat_messages", Integer.class
+        );
+        return count != null ? count : 0;
     }
 
     /**

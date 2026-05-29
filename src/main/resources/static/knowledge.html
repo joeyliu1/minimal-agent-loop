@@ -5,19 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>知识库管理 - Agent Loop</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: #0f0f1a;
             color: #e0e0e0;
             min-height: 100vh;
         }
-        
         header {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             padding: 20px 30px;
@@ -26,7 +20,6 @@
             justify-content: space-between;
             align-items: center;
         }
-        
         header h1 {
             font-size: 24px;
             font-weight: 600;
@@ -35,7 +28,6 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        
         .back-btn {
             padding: 10px 20px;
             background: #1e1e3f;
@@ -47,18 +39,8 @@
             text-decoration: none;
             transition: all 0.2s;
         }
-        
-        .back-btn:hover {
-            background: #2a2a5a;
-            border-color: #00d4ff;
-        }
-        
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 30px;
-        }
-        
+        .back-btn:hover { background: #2a2a5a; border-color: #00d4ff; }
+        .container { max-width: 900px; margin: 0 auto; padding: 30px; }
         .card {
             background: #13132a;
             border: 1px solid #2a2a4a;
@@ -66,7 +48,6 @@
             padding: 25px;
             margin-bottom: 25px;
         }
-        
         .card h2 {
             font-size: 18px;
             color: #00d4ff;
@@ -74,14 +55,88 @@
             padding-bottom: 10px;
             border-bottom: 1px solid #2a2a4a;
         }
-        
-        .add-form {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed #2a2a4a;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #1a1a2e;
         }
-        
-        .add-form input {
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #00d4ff;
+            background: rgba(0, 212, 255, 0.05);
+        }
+        .drop-zone .icon { font-size: 48px; margin-bottom: 15px; }
+        .drop-zone .title { font-size: 16px; font-weight: 600; color: #e0e0e0; margin-bottom: 8px; }
+        .drop-zone .subtitle { font-size: 13px; color: #666; margin-bottom: 15px; }
+        .drop-zone .formats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+        }
+        .drop-zone .format-tag {
+            padding: 3px 10px;
+            background: #2a2a4a;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #888;
+        }
+        .drop-zone input[type="file"] { display: none; }
+
+        /* File list */
+        .file-list { margin-top: 20px; }
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 15px;
+            background: #1e1e3f;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .file-item .name { flex: 1; color: #e0e0e0; }
+        .file-item .size { color: #666; font-size: 12px; }
+        .file-item .status { font-size: 12px; }
+        .file-item .status.ok { color: #00d4ff; }
+        .file-item .status.err { color: #dc2626; }
+        .file-item .remove {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .file-item .remove:hover { color: #dc2626; }
+
+        /* Upload button */
+        .btn-row { display: flex; gap: 12px; margin-top: 15px; }
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #0f0f1a;
+        }
+        .btn-primary:hover { transform: scale(1.02); box-shadow: 0 5px 20px rgba(0, 212, 255, 0.3); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-danger { background: #dc2626; color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        /* Add form */
+        .add-form { display: flex; flex-direction: column; gap: 12px; }
+        .add-form input[type="text"] {
             padding: 12px 15px;
             background: #1e1e3f;
             border: 1px solid #2a2a4a;
@@ -91,15 +146,8 @@
             outline: none;
             transition: border-color 0.2s;
         }
-        
-        .add-form input:focus {
-            border-color: #00d4ff;
-        }
-        
-        .add-form input::placeholder {
-            color: #555;
-        }
-        
+        .add-form input[type="text"]:focus { border-color: #00d4ff; }
+        .add-form input[type="text"]::placeholder { color: #555; }
         .add-form textarea {
             padding: 12px 15px;
             background: #1e1e3f;
@@ -113,81 +161,17 @@
             font-family: inherit;
             transition: border-color 0.2s;
         }
-        
-        .add-form textarea:focus {
-            border-color: #00d4ff;
-        }
-        
-        .add-form .btn-row {
-            display: flex;
-            gap: 12px;
-        }
-        
-        .btn {
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #00d4ff, #0099cc);
-            color: #0f0f1a;
-        }
-        
-        .btn-primary:hover {
-            transform: scale(1.02);
-            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.3);
-        }
-        
-        .btn-danger {
-            background: #dc2626;
-            color: white;
-        }
-        
-        .btn-danger:hover {
-            background: #b91c1c;
-        }
-        
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .stats {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-        
-        .stat {
-            background: #1e1e3f;
-            padding: 15px 25px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        
-        .stat .number {
-            font-size: 28px;
-            font-weight: 700;
-            color: #00d4ff;
-        }
-        
-        .stat .label {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-        
-        .doc-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
+        .add-form textarea:focus { border-color: #00d4ff; }
+        .add-form .btn-row { display: flex; gap: 12px; }
+
+        /* Stats */
+        .stats { display: flex; gap: 20px; margin-bottom: 20px; }
+        .stat { background: #1e1e3f; padding: 15px 25px; border-radius: 10px; text-align: center; }
+        .stat .number { font-size: 28px; font-weight: 700; color: #00d4ff; }
+        .stat .label { font-size: 12px; color: #666; margin-top: 5px; }
+
+        /* Doc list */
+        .doc-list { max-height: 400px; overflow-y: auto; }
         .doc-item {
             background: #1e1e3f;
             border: 1px solid #2a2a4a;
@@ -199,40 +183,12 @@
             align-items: flex-start;
             gap: 15px;
         }
-        
-        .doc-item:hover {
-            border-color: #3a3a6a;
-        }
-        
-        .doc-content {
-            flex: 1;
-        }
-        
-        .doc-content .text {
-            font-size: 14px;
-            line-height: 1.6;
-            color: #e0e0e0;
-            word-break: break-word;
-        }
-        
-        .doc-content .source {
-            font-size: 12px;
-            color: #00d4ff;
-            margin-top: 8px;
-        }
-        
-        .doc-content .meta {
-            font-size: 11px;
-            color: #555;
-            margin-top: 5px;
-        }
-        
-        .doc-actions {
-            display: flex;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-        
+        .doc-item:hover { border-color: #3a3a6a; }
+        .doc-content { flex: 1; }
+        .doc-content .text { font-size: 14px; line-height: 1.6; color: #e0e0e0; word-break: break-word; max-height: 80px; overflow: hidden; }
+        .doc-content .source { font-size: 12px; color: #00d4ff; margin-top: 8px; }
+        .doc-content .meta { font-size: 11px; color: #555; margin-top: 5px; }
+        .doc-actions { display: flex; gap: 8px; flex-shrink: 0; }
         .doc-actions button {
             padding: 8px 12px;
             background: #2a2a4a;
@@ -243,22 +199,11 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        
-        .doc-actions button:hover {
-            background: #dc2626;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 50px;
-            color: #555;
-        }
-        
-        .empty-state .icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-        
+        .doc-actions button:hover { background: #dc2626; }
+        .empty-state { text-align: center; padding: 50px; color: #555; }
+        .empty-state .icon { font-size: 48px; margin-bottom: 15px; }
+
+        /* Toast */
         .toast {
             position: fixed;
             bottom: 30px;
@@ -272,16 +217,11 @@
             transform: translateY(100px);
             opacity: 0;
             transition: all 0.3s;
+            z-index: 9999;
+            max-width: 350px;
         }
-        
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-        
-        .toast.error {
-            border-color: #dc2626;
-        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.error { border-color: #dc2626; }
     </style>
 </head>
 <body>
@@ -289,10 +229,40 @@
         <h1>📚 知识库管理</h1>
         <a href="/index.html" class="back-btn">← 返回控制台</a>
     </header>
-    
+
     <div class="container">
+        <!-- Drop zone -->
         <div class="card">
-            <h2>➕ 添加文档</h2>
+            <h2>📤 拖拽文件到此处上传</h2>
+            <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                <div class="icon">📁</div>
+                <div class="title">点击选择文件 或 拖拽文件到此处</div>
+                <div class="subtitle">支持多个文件同时上传</div>
+                <div class="formats">
+                    <span class="format-tag">PDF</span>
+                    <span class="format-tag">Word</span>
+                    <span class="format-tag">TXT</span>
+                    <span class="format-tag">MD</span>
+                    <span class="format-tag">JSON</span>
+                    <span class="format-tag">XML</span>
+                    <span class="format-tag">HTML</span>
+                    <span class="format-tag">CSV</span>
+                    <span class="format-tag">代码文件</span>
+                    <span class="format-tag">ZIP</span>
+                    <span class="format-tag">YAML</span>
+                    <span class="format-tag">Properties</span>
+                </div>
+                <input type="file" id="fileInput" multiple>
+            </div>
+            <div class="file-list" id="fileList"></div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="uploadBtn" onclick="uploadFiles()" disabled>上传到知识库</button>
+            </div>
+        </div>
+
+        <!-- Manual add -->
+        <div class="card">
+            <h2>➕ 手动添加文档</h2>
             <div class="add-form">
                 <input type="text" id="docSource" placeholder="来源（标题）">
                 <textarea id="docContent" placeholder="文档内容..."></textarea>
@@ -302,7 +272,8 @@
                 </div>
             </div>
         </div>
-        
+
+        <!-- Doc list -->
         <div class="card">
             <h2>📋 文档列表</h2>
             <div class="stats">
@@ -319,20 +290,121 @@
             </div>
         </div>
     </div>
-    
+
     <div class="toast" id="toast"></div>
-    
+
     <script>
-        let documents = [];
-        
+        let pendingFiles = [];
+
         function showToast(msg, isError = false) {
             const toast = document.getElementById('toast');
             toast.textContent = msg;
             toast.className = 'toast' + (isError ? ' error' : '');
             toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            setTimeout(() => toast.classList.remove('show'), 4000);
         }
-        
+
+        // Drag & drop
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+        function handleFiles(files) {
+            for (const file of files) {
+                if (!pendingFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    pendingFiles.push(file);
+                }
+            }
+            renderFileList();
+        }
+
+        function renderFileList() {
+            const list = document.getElementById('fileList');
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = pendingFiles.length === 0;
+
+            if (pendingFiles.length === 0) {
+                list.innerHTML = '';
+                return;
+            }
+
+            list.innerHTML = pendingFiles.map((file, i) => `
+                <div class="file-item">
+                    <span class="status ok">⏳</span>
+                    <span class="name">${escapeHtml(file.name)}</span>
+                    <span class="size">${formatSize(file.size)}</span>
+                    <button class="remove" onclick="removeFile(${i})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function removeFile(index) {
+            pendingFiles.splice(index, 1);
+            renderFileList();
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function uploadFiles() {
+            if (pendingFiles.length === 0) return;
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '上传中...';
+
+            const formData = new FormData();
+            pendingFiles.forEach(file => formData.append('files', file));
+
+            try {
+                const res = await fetch('/api/rag/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                // Update file list with results
+                const items = document.querySelectorAll('.file-item');
+                const lines = data.message.split('\n').filter(l => l.trim());
+
+                items.forEach((item, i) => {
+                    const nameEl = item.querySelector('.name');
+                    const statusEl = item.querySelector('.status');
+                    if (lines[i]) {
+                        const isOk = lines[i].startsWith('✓');
+                        statusEl.textContent = isOk ? '✓' : '✗';
+                        statusEl.className = 'status ' + (isOk ? 'ok' : 'err');
+                    }
+                });
+
+                showToast(`成功 ${data.success} 个，失败 ${data.failed} 个` + (data.failed > 0 ? ' (部分文件内容为空)' : ''));
+                pendingFiles = [];
+                renderFileList();
+                loadDocuments();
+            } catch (err) {
+                showToast('上传失败: ' + err.message, true);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '上传到知识库';
+            }
+        }
+
         function loadDocuments() {
             fetch('/api/rag/list')
             .then(res => res.json())
@@ -342,22 +414,19 @@
             })
             .catch(err => showToast('加载失败: ' + err.message, true));
         }
-        
+
+        let documents = [];
+
         function renderList() {
             document.getElementById('docCount').textContent = documents.length;
             const list = document.getElementById('docList');
-            
+
             if (documents.length === 0) {
-                list.innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">📭</div>
-                        <div>知识库为空，添加你的第一条文档吧</div>
-                    </div>
-                `;
+                list.innerHTML = `<div class="empty-state"><div class="icon">📭</div><div>知识库为空，添加你的第一条文档吧</div></div>`;
                 return;
             }
-            
-            list.innerHTML = documents.map((doc, i) => `
+
+            list.innerHTML = documents.map(doc => `
                 <div class="doc-item">
                     <div class="doc-content">
                         <div class="text">${escapeHtml(doc.content)}</div>
@@ -370,21 +439,12 @@
                 </div>
             `).join('');
         }
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
+
         function addDocument() {
             const content = document.getElementById('docContent').value.trim();
             const source = document.getElementById('docSource').value.trim() || '用户添加';
-            if (!content) {
-                showToast('请输入文档内容', true);
-                return;
-            }
-            
+            if (!content) { showToast('请输入文档内容', true); return; }
+
             fetch('/api/rag/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -398,29 +458,23 @@
             })
             .catch(err => showToast('添加失败: ' + err.message, true));
         }
-        
+
         function deleteDoc(id) {
             if (!confirm('确定删除这条文档？')) return;
             fetch(`/api/rag/delete?id=${id}`, { method: 'DELETE' })
             .then(res => res.json())
-            .then(data => {
-                showToast('删除成功');
-                loadDocuments();
-            })
+            .then(data => { showToast('删除成功'); loadDocuments(); })
             .catch(err => showToast('删除失败: ' + err.message, true));
         }
-        
+
         function clearAll() {
             if (!confirm('确定清空全部文档？此操作不可恢复。')) return;
             fetch('/api/rag/clear', { method: 'DELETE' })
             .then(res => res.json())
-            .then(data => {
-                showToast('已清空全部文档');
-                loadDocuments();
-            })
+            .then(data => { showToast('已清空全部文档'); loadDocuments(); })
             .catch(err => showToast('清空失败: ' + err.message, true));
         }
-        
+
         loadDocuments();
     </script>
 </body>

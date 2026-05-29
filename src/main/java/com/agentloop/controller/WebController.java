@@ -1,10 +1,13 @@
 package com.agentloop.controller;
 
+import com.agentloop.rag.DocumentParser;
 import com.agentloop.rag.IndexingService;
 import com.agentloop.service.AgentService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,10 +18,12 @@ public class WebController {
 
     private final AgentService agentService;
     private final IndexingService indexingService;
+    private final DocumentParser documentParser;
 
-    public WebController(AgentService agentService, IndexingService indexingService) {
+    public WebController(AgentService agentService, IndexingService indexingService, DocumentParser documentParser) {
         this.agentService = agentService;
         this.indexingService = indexingService;
+        this.documentParser = documentParser;
     }
 
     @GetMapping("/")
@@ -36,6 +41,38 @@ public class WebController {
         String message = request.get("message");
         String response = agentService.execute(message);
         return Map.of("response", response);
+    }
+
+    @PostMapping("/api/rag/upload")
+    public Map<String, Object> ragUpload(@RequestParam("files") List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) {
+            return Map.of("status", "error", "message", "请选择文件");
+        }
+        int success = 0;
+        int failed = 0;
+        StringBuilder msg = new StringBuilder();
+        for (MultipartFile file : files) {
+            try {
+                String content = documentParser.parse(file);
+                if (content != null && !content.isBlank()) {
+                    indexingService.addDocument(content, "文件上传: " + file.getOriginalFilename());
+                    success++;
+                    msg.append("✓ ").append(file.getOriginalFilename()).append("\n");
+                } else {
+                    failed++;
+                    msg.append("✗ ").append(file.getOriginalFilename()).append(" (内容为空)\n");
+                }
+            } catch (Exception e) {
+                failed++;
+                msg.append("✗ ").append(file.getOriginalFilename()).append(": ").append(e.getMessage()).append("\n");
+            }
+        }
+        return Map.of(
+            "status", failed == 0 ? "ok" : "partial",
+            "success", success,
+            "failed", failed,
+            "message", msg.toString()
+        );
     }
 
     @PostMapping("/api/rag/add")
