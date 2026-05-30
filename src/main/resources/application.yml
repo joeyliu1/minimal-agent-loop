@@ -25,7 +25,20 @@ spring:
           temperature: ${TEMPERATURE:0.7}
       embedding:
         options:
-          model: ${EMBEDDING_MODEL:text-embedding-v3}
+          model: ${EMBEDDING_MODEL:text-embedding-v2}
+
+  # Milvus 向量数据库配置
+  vectorstore:
+    milvus:
+      client:
+        host: localhost
+        port: 19530
+        username: "" # default: root
+        password: "" # default: milvus
+      database-name: default
+      collection-name: agent_knowledge
+      embedding-dimension: ${MILVUS_DIMENSION:1536}
+      initializeSchema: true # 自动创建集合
 
 server:
   port: 8085

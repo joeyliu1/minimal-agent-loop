@@ -46,10 +46,16 @@
         </dependency>
 
         <!-- Spring AI Vector Store (RAG 支持) -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-vector-store</artifactId>
-        </dependency>
+                <dependency>
+                    <groupId>org.springframework.ai</groupId>
+                    <artifactId>spring-ai-vector-store</artifactId>
+                </dependency>
+
+                <!-- Milvus Vector Store -->
+                <dependency>
+                    <groupId>org.springframework.ai</groupId>
+                    <artifactId>spring-ai-starter-vector-store-milvus</artifactId>
+                </dependency>
 
         <!-- Chat Memory -->
 

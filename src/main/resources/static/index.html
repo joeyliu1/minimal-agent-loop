@@ -72,11 +72,10 @@
             overflow: hidden;
         }
 
-        /* Page toggling - aside always visible */
-        #chatPage { display: flex; flex-direction: column; height: 100%; }
-        #knowledgePage { display: none; height: 100%; overflow-y: auto; }
+        /* Page switching: hash router */
+        #chatView { display: flex; flex-direction: column; height: 100%; }
+        #knowledgeView { display: none; flex-direction: column; height: 100%; overflow-y: auto; }
 
-        /* Quick actions bar */
         .quick-actions { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
         .quick-btn {
             padding: 8px 16px;
@@ -90,7 +89,6 @@
         }
         .quick-btn:hover { background: #2a2a5a; color: #00d4ff; border-color: #00d4ff; }
 
-        /* Chat area */
         .chat-area {
             flex: 1;
             overflow-y: auto;
@@ -138,9 +136,9 @@
         .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
         @keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
 
-        /* Knowledge page */
-        .knowledge-header { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
-        .knowledge-header .tab-btn {
+        /* Knowledge view */
+        .knowledge-header { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .knowledge-header .back-btn {
             padding: 8px 16px;
             border-radius: 8px;
             font-size: 13px;
@@ -150,91 +148,60 @@
             color: #888;
             transition: all 0.2s;
         }
-        .knowledge-header .tab-btn:hover { border-color: #00d4ff; color: #00d4ff; }
-        .knowledge-header .tab-btn.active { background: #00d4ff; color: #0f0f1a; border-color: #00d4ff; }
-        .knowledge-header .back-btn { margin-left: auto; }
+        .knowledge-header .back-btn:hover { border-color: #00d4ff; color: #00d4ff; }
 
-        /* Drop zone */
+        .k-section {
+            background: #13132a;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 20px 25px;
+            margin-bottom: 18px;
+        }
+        .k-section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #00d4ff;
+            margin-bottom: 14px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #2a2a4a;
+        }
+
         .drop-zone {
             border: 2px dashed #2a2a4a;
             border-radius: 12px;
-            padding: 40px;
+            padding: 30px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
             background: #1a1a2e;
-            margin-bottom: 20px;
         }
         .drop-zone:hover, .drop-zone.dragover {
             border-color: #00d4ff;
             background: rgba(0, 212, 255, 0.05);
         }
-        .drop-zone .icon { font-size: 48px; margin-bottom: 15px; }
-        .drop-zone .title { font-size: 16px; font-weight: 600; color: #e0e0e0; margin-bottom: 8px; }
-        .drop-zone .subtitle { font-size: 13px; color: #666; margin-bottom: 15px; }
-        .drop-zone .formats { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+        .drop-zone .icon { font-size: 40px; margin-bottom: 10px; }
+        .drop-zone .title { font-size: 15px; font-weight: 600; color: #e0e0e0; margin-bottom: 6px; }
+        .drop-zone .subtitle { font-size: 13px; color: #666; margin-bottom: 10px; }
+        .drop-zone .formats { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
         .drop-zone .format-tag { padding: 3px 10px; background: #2a2a4a; border-radius: 4px; font-size: 11px; color: #888; }
         .drop-zone input[type="file"] { display: none; }
 
-        /* File list */
-        .file-list { margin-bottom: 15px; }
+        .file-list { margin-top: 12px; }
         .file-item {
-            display: flex; align-items: center; gap: 12px; padding: 10px 15px;
-            background: #1e1e3f; border-radius: 8px; margin-bottom: 8px; font-size: 13px;
+            display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+            background: #1e1e3f; border-radius: 8px; margin-bottom: 6px; font-size: 13px;
         }
-        .file-item .name { flex: 1; color: #e0e0e0; }
-        .file-item .size { color: #666; font-size: 12px; }
-        .file-item .status { font-size: 12px; }
+        .file-item .name { flex: 1; color: #e0e0e0; word-break: break-all; }
+        .file-item .size { color: #666; font-size: 12px; flex-shrink: 0; }
+        .file-item .status { font-size: 12px; flex-shrink: 0; }
         .file-item .status.ok { color: #00d4ff; }
         .file-item .status.err { color: #dc2626; }
-        .file-item .remove { background: none; border: none; color: #666; cursor: pointer; font-size: 16px; }
+        .file-item .remove { background: none; border: none; color: #666; cursor: pointer; font-size: 15px; flex-shrink: 0; }
         .file-item .remove:hover { color: #dc2626; }
 
-        /* Add form */
-        .add-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
-        .add-form input[type="text"] {
-            padding: 10px 12px; background: #1e1e3f; border: 1px solid #2a2a4a;
-            border-radius: 8px; color: #e0e0e0; font-size: 13px; outline: none;
-        }
-        .add-form input[type="text"]:focus { border-color: #00d4ff; }
-        .add-form input[type="text"]::placeholder { color: #555; }
-        .add-form textarea {
-            padding: 10px 12px; background: #1e1e3f; border: 1px solid #2a2a4a;
-            border-radius: 8px; color: #e0e0e0; font-size: 13px; outline: none; resize: vertical; min-height: 80px;
-        }
-        .add-form textarea:focus { border-color: #00d4ff; }
-        .add-form textarea::placeholder { color: #555; }
-
-        /* Stats */
-        .stats { display: flex; gap: 15px; margin-bottom: 15px; }
-        .stat { background: #1e1e3f; padding: 12px 20px; border-radius: 10px; text-align: center; }
-        .stat .number { font-size: 24px; font-weight: 700; color: #00d4ff; }
-        .stat .label { font-size: 12px; color: #666; margin-top: 4px; }
-
-        /* Doc list */
-        .doc-list { max-height: 300px; overflow-y: auto; }
-        .doc-item {
-            background: #1e1e3f; border: 1px solid #2a2a4a; border-radius: 10px;
-            padding: 15px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; gap: 15px;
-        }
-        .doc-item:hover { border-color: #3a3a6a; }
-        .doc-content { flex: 1; }
-        .doc-content .text { font-size: 14px; line-height: 1.6; color: #e0e0e0; word-break: break-word; max-height: 80px; overflow: hidden; }
-        .doc-content .source { font-size: 12px; color: #00d4ff; margin-top: 8px; }
-        .doc-content .meta { font-size: 11px; color: #555; margin-top: 5px; }
-        .doc-actions { display: flex; gap: 8px; flex-shrink: 0; }
-        .doc-actions button {
-            padding: 8px 12px; background: #2a2a4a; border: none; border-radius: 6px;
-            color: #e0e0e0; font-size: 12px; cursor: pointer; transition: all 0.2s;
-        }
-        .doc-actions button:hover { background: #dc2626; }
-        .empty-state { text-align: center; padding: 30px; color: #555; }
-        .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
-
-        /* Shared button styles */
-        .btn-row { display: flex; gap: 8px; }
+        .btn-row { display: flex; gap: 10px; margin-top: 12px; }
         .btn {
-            padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+            padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
             cursor: pointer; transition: all 0.2s; border: none;
         }
         .btn-primary { background: linear-gradient(135deg, #00d4ff, #0099cc); color: #0f0f1a; }
@@ -243,11 +210,44 @@
         .btn-danger { background: #dc2626; color: white; }
         .btn-danger:hover { background: #b91c1c; }
 
+        .add-form { display: flex; flex-direction: column; gap: 10px; }
+        .add-form input[type="text"] {
+            padding: 10px 14px; background: #1e1e3f; border: 1px solid #2a2a4a;
+            border-radius: 8px; color: #e0e0e0; font-size: 13px; outline: none;
+        }
+        .add-form input[type="text"]:focus { border-color: #00d4ff; }
+        .add-form input[type="text"]::placeholder { color: #555; }
+        .add-form textarea {
+            padding: 10px 14px; background: #1e1e3f; border: 1px solid #2a2a4a;
+            border-radius: 8px; color: #e0e0e0; font-size: 13px; outline: none; resize: vertical; min-height: 70px;
+        }
+        .add-form textarea:focus { border-color: #00d4ff; }
+        .add-form textarea::placeholder { color: #555; }
+
+        .doc-list { max-height: 260px; overflow-y: auto; }
+        .doc-item {
+            background: #1e1e3f; border: 1px solid #2a2a4a; border-radius: 10px;
+            padding: 12px 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+        }
+        .doc-item:hover { border-color: #3a3a6a; }
+        .doc-content { flex: 1; min-width: 0; }
+        .doc-content .text { font-size: 13px; line-height: 1.6; color: #e0e0e0; word-break: break-word; max-height: 60px; overflow: hidden; }
+        .doc-content .source { font-size: 12px; color: #00d4ff; margin-top: 6px; }
+        .doc-content .meta { font-size: 11px; color: #555; margin-top: 4px; }
+        .doc-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .doc-actions button {
+            padding: 6px 10px; background: #2a2a4a; border: none; border-radius: 6px;
+            color: #e0e0e0; font-size: 12px; cursor: pointer; transition: all 0.2s;
+        }
+        .doc-actions button:hover { background: #dc2626; }
+        .empty-state { text-align: center; padding: 25px; color: #555; font-size: 13px; }
+        .empty-state .icon { font-size: 32px; margin-bottom: 8px; }
+
         /* Toast */
         .toast {
-            position: fixed; bottom: 30px; right: 30px; padding: 15px 25px; background: #1e1e3f;
-            border: 1px solid #00d4ff; border-radius: 10px; color: #e0e0e0; font-size: 14px;
-            transform: translateY(100px); opacity: 0; transition: all 0.3s; z-index: 9999; max-width: 350px;
+            position: fixed; bottom: 30px; right: 30px; padding: 14px 22px; background: #1e1e3f;
+            border: 1px solid #00d4ff; border-radius: 10px; color: #e0e0e0; font-size: 13px;
+            transform: translateY(100px); opacity: 0; transition: all 0.3s; z-index: 9999; max-width: 320px;
         }
         .toast.show { transform: translateY(0); opacity: 1; }
         .toast.error { border-color: #dc2626; }
@@ -266,49 +266,49 @@
         <aside>
             <div class="tool-section">
                 <h4>🧮 数学计算</h4>
-                <button class="tool-btn" onclick="sendMessage('2+2等于几？')">
+                <button class="tool-btn" onclick="sendMessageFromAside('2+2等于几？')">
                     基本运算<span class="desc">2+2, 15*25+100 等</span>
                 </button>
-                <button class="tool-btn" onclick="sendMessage('计算 (100 + 200) / 3 的结果')">
+                <button class="tool-btn" onclick="sendMessageFromAside('计算 (100 + 200) / 3 的结果')">
                     复杂表达式<span class="desc">括号、混合运算</span>
                 </button>
             </div>
 
             <div class="tool-section">
                 <h4>📅 时间查询</h4>
-                <button class="tool-btn" onclick="sendMessage('现在几点？')">
+                <button class="tool-btn" onclick="sendMessageFromAside('现在几点？')">
                     当前时间<span class="desc">查询系统时间</span>
                 </button>
-                <button class="tool-btn" onclick="sendMessage('今天是几号？')">
+                <button class="tool-btn" onclick="sendMessageFromAside('今天是几号？')">
                     当前日期<span class="desc">查询年月日</span>
                 </button>
             </div>
 
             <div class="tool-section">
                 <h4>📚 知识库</h4>
-                <button class="tool-btn" onclick="showKnowledgePage()">
+                <button class="tool-btn" onclick="showKnowledgeView()">
                     📚 管理知识库<span class="desc">添加/删除/查看</span>
                 </button>
             </div>
 
             <div class="tool-section">
                 <h4>🌐 网页搜索</h4>
-                <button class="tool-btn" onclick="sendMessage('帮我搜索一下 AI Agent 的最新发展')">
+                <button class="tool-btn" onclick="sendMessageFromAside('帮我搜索一下 AI Agent 的最新发展')">
                     AI Agent 资讯<span class="desc">搜索网络内容</span>
                 </button>
-                <button class="tool-btn" onclick="sendMessage('搜索一下什么是 RAG 技术')">
+                <button class="tool-btn" onclick="sendMessageFromAside('搜索一下什么是 RAG 技术')">
                     RAG 技术<span class="desc">了解 RAG 概念</span>
                 </button>
             </div>
         </aside>
 
         <main>
-            <!-- Chat Page -->
-            <div id="chatPage">
+            <!-- Chat view -->
+            <div id="chatView">
                 <div class="quick-actions">
                     <button class="quick-btn" onclick="clearChat()">🗑️ 清空对话</button>
-                    <button class="quick-btn" onclick="sendMessage('你是谁？')">❓ 你是谁</button>
-                    <button class="quick-btn" onclick="sendMessage('今天天气怎么样？')">🌤️ 天气</button>
+                    <button class="quick-btn" onclick="sendMessageFromAside('你是谁？')">❓ 你是谁</button>
+                    <button class="quick-btn" onclick="sendMessageFromAside('今天天气怎么样？')">🌤️ 天气</button>
                 </div>
                 <div class="chat-area" id="chatArea">
                     <div class="message agent">
@@ -330,33 +330,25 @@
                 </div>
             </div>
 
-            <!-- Knowledge Page -->
-            <div id="knowledgePage">
+            <!-- Knowledge view -->
+            <div id="knowledgeView">
                 <div class="knowledge-header">
-                    <button class="tab-btn active" id="tabUpload" onclick="showKnowledgeTab('upload')">📤 上传文件</button>
-                    <button class="tab-btn" id="tabAdd" onclick="showKnowledgeTab('add')">✏️ 手动添加</button>
-                    <button class="tab-btn" id="tabList" onclick="showKnowledgeTab('list')">📋 文档列表</button>
-                    <button class="tab-btn back-btn" onclick="showChatPage()">← 返回聊天</button>
+                    <span style="font-size:16px;font-weight:600;color:#00d4ff;">📚 知识库管理</span>
+                    <button class="back-btn" onclick="showChatView()">← 返回聊天</button>
                 </div>
 
-                <!-- Upload panel -->
-                <div id="panelUpload">
+                <!-- Upload -->
+                <div class="k-section">
+                    <div class="k-section-title">📤 拖拽文件上传</div>
                     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
                         <div class="icon">📁</div>
                         <div class="title">点击选择文件 或 拖拽文件到此处</div>
-                        <div class="subtitle">支持多个文件同时上传</div>
+                        <div class="subtitle">支持 PDF、Word、TXT、MD、JSON、XML、HTML、CSV、代码文件、ZIP、YAML、Properties</div>
                         <div class="formats">
-                            <span class="format-tag">PDF</span>
-                            <span class="format-tag">Word</span>
-                            <span class="format-tag">TXT</span>
-                            <span class="format-tag">MD</span>
-                            <span class="format-tag">JSON</span>
-                            <span class="format-tag">XML</span>
-                            <span class="format-tag">HTML</span>
-                            <span class="format-tag">CSV</span>
-                            <span class="format-tag">代码</span>
-                            <span class="format-tag">ZIP</span>
-                            <span class="format-tag">YAML</span>
+                            <span class="format-tag">PDF</span><span class="format-tag">Word</span><span class="format-tag">TXT</span>
+                            <span class="format-tag">MD</span><span class="format-tag">JSON</span><span class="format-tag">XML</span>
+                            <span class="format-tag">HTML</span><span class="format-tag">CSV</span><span class="format-tag">代码</span>
+                            <span class="format-tag">ZIP</span><span class="format-tag">YAML</span><span class="format-tag">Properties</span>
                         </div>
                         <input type="file" id="fileInput" multiple>
                     </div>
@@ -366,28 +358,24 @@
                     </div>
                 </div>
 
-                <!-- Add panel -->
-                <div id="panelAdd" style="display:none;">
+                <!-- Manual add -->
+                <div class="k-section">
+                    <div class="k-section-title">➕ 手动添加</div>
                     <div class="add-form">
                         <input type="text" id="docSource" placeholder="来源（标题）">
                         <textarea id="docContent" placeholder="文档内容..."></textarea>
                         <div class="btn-row">
                             <button class="btn btn-primary" onclick="addDocument()">添加</button>
-                            <button class="btn btn-danger" onclick="clearAllDocs()">清空全部</button>
+                            <button class="btn btn-danger" onclick="clearAllDocs()">清空</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- List panel -->
-                <div id="panelList" style="display:none;">
-                    <div class="stats">
-                        <div class="stat">
-                            <div class="number" id="docCount">0</div>
-                            <div class="label">文档数量</div>
-                        </div>
-                    </div>
+                <!-- Doc list -->
+                <div class="k-section">
+                    <div class="k-section-title">📋 文档列表 <span id="docCountBadge" style="font-size:12px;color:#666;font-weight:400;margin-left:6px;">0 条</span></div>
                     <div class="doc-list" id="docList">
-                        <div class="empty-state"><div class="icon">📭</div><div>知识库为空</div></div>
+                        <div class="empty-state"><div class="icon">📭</div><div>知识库为空，添加你的第一条文档吧</div></div>
                     </div>
                 </div>
             </div>
@@ -397,11 +385,23 @@
     <div class="toast" id="toast"></div>
 
     <script>
-        let isLoading = false;
-        let pendingFiles = [];
-        let documents = [];
+        var isLoading = false;
+        var pendingFiles = [];
+        var documents = [];
 
-        // ── Chat ──────────────────────────────────────────────
+        // ── View switch (no page reload, aside always intact) ──
+        function showChatView() {
+            document.getElementById('chatView').style.display = 'flex';
+            document.getElementById('knowledgeView').style.display = 'none';
+        }
+
+        function showKnowledgeView() {
+            document.getElementById('chatView').style.display = 'none';
+            document.getElementById('knowledgeView').style.display = 'flex';
+            loadDocuments();
+        }
+
+        // ── Chat ──
         function handleKeyPress(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -410,29 +410,32 @@
         }
 
         function sendMessage(msg) {
-            const input = document.getElementById('messageInput');
-            const message = msg || input.value.trim();
+            var input = document.getElementById('messageInput');
+            var message = msg || input.value.trim();
             if (!message || isLoading) return;
-
             addMessage(message, 'user');
             input.value = '';
             setLoading(true);
-
             fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
+                body: JSON.stringify({ message: message })
             })
-            .then(res => res.json())
-            .then(data => { addMessage(data.response || '无响应', 'agent'); })
-            .catch(err => { addMessage('错误: ' + err.message, 'agent'); })
-            .finally(() => setLoading(false));
+            .then(function(res) { return res.json(); })
+            .then(function(data) { addMessage(data.response || '无响应', 'agent'); })
+            .catch(function(err) { addMessage('错误: ' + err.message, 'agent'); })
+            .finally(function() { setLoading(false); });
+        }
+
+        function sendMessageFromAside(msg) {
+            showChatView();
+            setTimeout(function() { sendMessage(msg); }, 10);
         }
 
         function addMessage(content, type) {
-            const chatArea = document.getElementById('chatArea');
-            const avatar = type === 'user' ? 'U' : 'AI';
-            const div = document.createElement('div');
+            var chatArea = document.getElementById('chatArea');
+            var avatar = type === 'user' ? 'U' : 'AI';
+            var div = document.createElement('div');
             div.className = 'message ' + type;
             div.innerHTML = '<div class="avatar">' + avatar + '</div><div class="message-content">' + formatContent(content) + '</div>';
             chatArea.appendChild(div);
@@ -451,16 +454,16 @@
         function setLoading(loading) {
             isLoading = loading;
             document.getElementById('sendBtn').disabled = loading;
-            const chatArea = document.getElementById('chatArea');
+            var chatArea = document.getElementById('chatArea');
             if (loading) {
-                const typing = document.createElement('div');
+                var typing = document.createElement('div');
                 typing.id = 'typing';
                 typing.className = 'message agent';
                 typing.innerHTML = '<div class="avatar">AI</div><div class="message-content"><div class="typing"><div class="typing-dots"><span></span><span></span><span></span></div>思考中...</div></div>';
                 chatArea.appendChild(typing);
                 chatArea.scrollTop = chatArea.scrollHeight;
             } else {
-                const t = document.getElementById('typing');
+                var t = document.getElementById('typing');
                 if (t) t.remove();
             }
         }
@@ -470,29 +473,7 @@
                 '<div class="message agent"><div class="avatar">AI</div><div class="message-content">对话已清空，开始新对话吧！</div></div>';
         }
 
-        // Knowledge page - open as full page
-                function showKnowledgePage() {
-                    window.location.href = '/knowledge.html';
-                }
-
-        function showChatPage() {
-            document.getElementById('knowledgePage').style.display = 'none';
-            document.getElementById('chatPage').style.display = 'flex';
-        }
-
-        function showKnowledgeTab(tab) {
-            var tabs  = ['upload', 'add', 'list'];
-            var names = ['Upload', 'Add', 'List'];
-            for (var i = 0; i < tabs.length; i++) {
-                document.getElementById('panel' + names[i]).style.display = 'none';
-                document.getElementById('tab'  + names[i]).classList.remove('active');
-            }
-            document.getElementById('panel' + names[tabs.indexOf(tab)]).style.display = 'block';
-            document.getElementById('tab'  + names[tabs.indexOf(tab)]).classList.add('active');
-            if (tab === 'list') loadDocuments();
-        }
-
-        // ── Drag & drop ───────────────────────────────────────
+        // ── Drag & drop ──
         var dropZone = document.getElementById('dropZone');
         var fileInput = document.getElementById('fileInput');
         dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -509,9 +490,7 @@
                 var f = files[i];
                 var exists = false;
                 for (var j = 0; j < pendingFiles.length; j++) {
-                    if (pendingFiles[j].name === f.name && pendingFiles[j].size === f.size) {
-                        exists = true; break;
-                    }
+                    if (pendingFiles[j].name === f.name && pendingFiles[j].size === f.size) { exists = true; break; }
                 }
                 if (!exists) pendingFiles.push(f);
             }
@@ -555,27 +534,25 @@
             var uploadBtn = document.getElementById('uploadBtn');
             uploadBtn.disabled = true;
             uploadBtn.textContent = '上传中...';
-
             var formData = new FormData();
-            for (var i = 0; i < pendingFiles.length; i++) {
-                formData.append('files', pendingFiles[i]);
-            }
+            for (var i = 0; i < pendingFiles.length; i++) formData.append('files', pendingFiles[i]);
             try {
                 var res = await fetch('/api/rag/upload', { method: 'POST', body: formData });
                 var data = await res.json();
                 var items = document.querySelectorAll('.file-item');
                 var lines = data.message.split('\n');
                 for (var i = 0; i < items.length; i++) {
-                    var statusEl = items[i].querySelector('.status');
+                    var el = items[i].querySelector('.status');
                     if (lines[i]) {
                         var ok = lines[i].indexOf('✓') === 0;
-                        statusEl.textContent = ok ? '✓' : '✗';
-                        statusEl.className = 'status ' + (ok ? 'ok' : 'err');
+                        el.textContent = ok ? '✓' : '✗';
+                        el.className = 'status ' + (ok ? 'ok' : 'err');
                     }
                 }
-                showToast('成功 ' + data.success + ' 个，失败 ' + data.failed + ' 个' + (data.failed > 0 ? ' (部分文件内容为空)' : ''));
+                showToast('成功 ' + data.success + ' 个，失败 ' + data.failed + ' 个');
                 pendingFiles = [];
                 renderFileList();
+                loadDocuments();
             } catch (err) {
                 showToast('上传失败: ' + err.message, true);
             } finally {
@@ -584,7 +561,7 @@
             }
         }
 
-        // ── Document management ──────────────────────────────
+        // ── Document management ──
         function loadDocuments() {
             fetch('/api/rag/list')
                 .then(function(res) { return res.json(); })
@@ -596,10 +573,10 @@
         }
 
         function renderDocList() {
-            document.getElementById('docCount').textContent = documents.length;
+            document.getElementById('docCountBadge').textContent = documents.length + ' 条';
             var list = document.getElementById('docList');
             if (documents.length === 0) {
-                list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><div>知识库为空</div></div>';
+                list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><div>知识库为空，添加你的第一条文档吧</div></div>';
                 return;
             }
             var html = '';
@@ -651,7 +628,7 @@
                 .catch(function(err) { showToast('清空失败: ' + err.message, true); });
         }
 
-        // ── Toast ────────────────────────────────────────────
+        // ── Toast ──
         function showToast(msg, isError) {
             var toast = document.getElementById('toast');
             toast.textContent = msg;

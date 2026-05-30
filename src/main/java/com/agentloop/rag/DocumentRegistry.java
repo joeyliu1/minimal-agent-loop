@@ -1,28 +1,23 @@
 package com.agentloop.rag;
 
+import io.milvus.client.MilvusClient;
+import io.milvus.param.ConnectParam;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Persists document registry to JSON file for durability.
- * Vector embeddings are re-generated on startup from stored content.
+ * Document registry backed by Milvus vector store.
+ * Metadata kept in memory; vector data in Milvus.
+ * No JSON file persistence — Milvus is the source of truth.
  */
 @Service
 public class DocumentRegistry {
@@ -30,7 +25,9 @@ public class DocumentRegistry {
     private final VectorStore vectorStore;
     private final DocumentChunker chunker;
     private final EmbeddingModel embeddingModel;
-    private final Path registryPath;
+
+    /** DashScope embedding API accepts max 25 texts per call */
+    private static final int EMBEDDING_BATCH_SIZE = 25;
 
     private record DocumentRecord(String id, String content, String source) {}
 
@@ -40,38 +37,24 @@ public class DocumentRegistry {
         this.vectorStore = vectorStore;
         this.chunker = chunker;
         this.embeddingModel = embeddingModel;
-        // Store in project root
-        this.registryPath = Paths.get(System.getProperty("user.dir"), "knowledge_registry.json");
     }
 
     @PostConstruct
     public void load() {
-        if (!Files.exists(registryPath)) return;
+        System.out.println("[DocumentRegistry] Starting, Milvus is source of truth — no JSON backup.");
+        System.out.println("[DocumentRegistry] VectorStore bean: " + vectorStore.getClass().getName());
 
+        // Diagnose which Milvus we're actually connected to
         try {
-            String json = Files.readString(registryPath);
-            ObjectMapper mapper = new ObjectMapper();
-            ArrayNode array = mapper.readTree(json).isArray()
-                ? (ArrayNode) mapper.readTree(json)
-                : mapper.createArrayNode();
-
-            int loaded = 0;
-            for (var node : array) {
-                String content = node.has("content") ? node.get("content").asText() : "";
-                String source = node.has("source") ? node.get("source").asText() : "";
-                if (!content.isBlank()) {
-                    reindex(content, source);
-                    loaded++;
-                }
-            }
-            System.out.println("[DocumentRegistry] Loaded " + loaded + " documents from registry");
+            String host = vectorStore.getClass().getDeclaredField("host").get(vectorStore).toString();
+            String port = vectorStore.getClass().getDeclaredField("port").get(vectorStore).toString();
+            System.out.println("[DocumentRegistry] Milvus connection: " + host + ":" + port);
         } catch (Exception e) {
-            System.err.println("[DocumentRegistry] Failed to load registry: " + e.getMessage());
+            System.out.println("[DocumentRegistry] Cannot read host/port from VectorStore: " + e.getMessage());
         }
     }
 
     private synchronized void reindex(String content, String source) {
-        // Avoid duplicates by checking content hash
         if (documentRegistry.stream().anyMatch(r -> r.content().equals(content))) return;
 
         List<DocumentChunker.DocumentChunk> chunks = chunker.chunk(content, source);
@@ -80,63 +63,65 @@ public class DocumentRegistry {
                 Map.of("source", source, "chunk_id", chunk.id(), "content", chunk.content())))
             .toList();
 
-        vectorStore.add(docs);
+        System.out.println("[DocumentRegistry] reindex: adding " + docs.size() + " chunks to vectorStore");
+        addDocumentsBatched(docs);
         for (var chunk : chunks) {
             documentRegistry.add(new DocumentRecord(chunk.id(), chunk.content(), source));
         }
     }
 
     public synchronized void addDocument(String content, String source) {
-        if (documentRegistry.stream().anyMatch(r -> r.content().equals(content))) return;
+        System.out.println("[DocumentRegistry] addDocument called — vectorStore class: " + vectorStore.getClass().getName());
+        if (documentRegistry.stream().anyMatch(r -> r.content().equals(content))) {
+            System.out.println("[DocumentRegistry] duplicate content, skipping");
+            return;
+        }
 
         List<DocumentChunker.DocumentChunk> chunks = chunker.chunk(content, source);
+        System.out.println("[DocumentRegistry] chunked into " + chunks.size() + " chunks");
         List<Document> docs = chunks.stream()
             .map(chunk -> new Document(chunk.id(), chunk.content(),
                 Map.of("source", source, "chunk_id", chunk.id(), "content", chunk.content())))
             .toList();
 
-        vectorStore.add(docs);
+        System.out.println("[DocumentRegistry] calling vectorStore.add() in batches of " + EMBEDDING_BATCH_SIZE + "...");
+        addDocumentsBatched(docs);
+        System.out.println("[DocumentRegistry] vectorStore.add() completed");
         for (var chunk : chunks) {
             documentRegistry.add(new DocumentRecord(chunk.id(), chunk.content(), source));
         }
-        save();
+        System.out.println("[DocumentRegistry] documentRegistry now has " + documentRegistry.size() + " entries");
+    }
+
+    /**
+     * Add documents in batches — DashScope API limit is 25 texts per embedding call.
+     */
+    private void addDocumentsBatched(List<Document> docs) {
+        for (int i = 0; i < docs.size(); i += EMBEDDING_BATCH_SIZE) {
+            int end = Math.min(i + EMBEDDING_BATCH_SIZE, docs.size());
+            List<Document> batch = docs.subList(i, end);
+            System.out.println("[DocumentRegistry]   batch " + (i / EMBEDDING_BATCH_SIZE + 1) + " (" + batch.size() + " docs)");
+            vectorStore.add(batch);
+        }
     }
 
     public synchronized void deleteDocument(String id) {
         documentRegistry.removeIf(r -> r.id().equals(id));
         vectorStore.delete(List.of(id));
-        save();
     }
 
     public synchronized void clear() {
-        documentRegistry.forEach(r -> vectorStore.delete(List.of(r.id())));
+        try {
+            vectorStore.delete(List.of());
+        } catch (Exception e) {
+            System.err.println("[DocumentRegistry] Clear failed: " + e.getMessage());
+        }
         documentRegistry.clear();
-        save();
     }
 
     public List<Map<String, String>> listDocuments() {
         return documentRegistry.stream()
             .map(r -> Map.of("id", r.id(), "content", r.content(), "source", r.source()))
             .toList();
-    }
-
-    private void save() {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            mapper.enable(SerializationFeature.INDENT_OUTPUT);
-            ArrayNode array = mapper.createArrayNode();
-
-            for (var record : documentRegistry) {
-                ObjectNode node = mapper.createObjectNode();
-                node.put("id", record.id());
-                node.put("content", record.content());
-                node.put("source", record.source());
-                array.add(node);
-            }
-
-            Files.writeString(registryPath, mapper.writeValueAsString(array));
-        } catch (Exception e) {
-            System.err.println("[DocumentRegistry] Failed to save registry: " + e.getMessage());
-        }
     }
 }
