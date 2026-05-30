@@ -41,6 +41,9 @@ public class RagTool {
             @ToolParam(description = "List of document contents") List<String> contents,
             @ToolParam(description = "List of sources/titles") List<String> sources
     ) {
+        if (contents == null || sources == null || contents.size() != sources.size()) {
+            return "[error] contents and sources must be non-null lists of equal size";
+        }
         for (int i = 0; i < contents.size(); i++) {
             indexingService.addDocument(contents.get(i), sources.get(i));
         }

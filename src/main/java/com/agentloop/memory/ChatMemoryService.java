@@ -1,5 +1,6 @@
 package com.agentloop.memory;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +22,11 @@ public class ChatMemoryService {
         this.jdbc = jdbc;
     }
 
+    @PostConstruct
+    public void init() {
+        jdbc.execute("SELECT 1 FROM chat_messages WHERE 1=0");
+    }
+
     /**
      * Add a message to session memory.
      */
@@ -39,20 +45,19 @@ public class ChatMemoryService {
     }
 
     /**
-     * Get recent N messages.
-     */
-    public List<ChatMessage> getRecentMessages(String sessionId, int count) {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
-            sessionId, count
-        );
-        List<ChatMessage> messages = new ArrayList<>();
-        for (int i = rows.size() - 1; i >= 0; i--) {
-            Map<String, Object> row = rows.get(i);
-            messages.add(new ChatMessage((String) row.get("role"), (String) row.get("content")));
+         * Get recent N messages in chronological order (oldest first — for ChatClient).
+         */
+        public List<ChatMessage> getRecentMessages(String sessionId, int count) {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
+                sessionId, count
+            );
+            List<ChatMessage> messages = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                messages.add(new ChatMessage((String) row.get("role"), (String) row.get("content")));
+            }
+            return messages;
         }
-        return messages;
-    }
 
     /**
      * Clear session memory.

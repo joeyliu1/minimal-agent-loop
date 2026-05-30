@@ -111,10 +111,16 @@ public class DocumentRegistry {
     }
 
     public synchronized void clear() {
-        try {
-            vectorStore.delete(List.of());
-        } catch (Exception e) {
-            System.err.println("[DocumentRegistry] Clear failed: " + e.getMessage());
+        List<String> allIds = documentRegistry.stream()
+            .map(DocumentRecord::id)
+            .toList();
+        if (!allIds.isEmpty()) {
+            try {
+                vectorStore.delete(allIds);
+            } catch (Exception e) {
+                System.err.println("[DocumentRegistry] Clear failed: " + e.getMessage());
+                return; // ⛸ don't clear in-memory registry if Milvus delete failed
+            }
         }
         documentRegistry.clear();
     }
