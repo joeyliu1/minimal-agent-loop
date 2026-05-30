@@ -62,6 +62,7 @@
             transition: all 0.2s;
         }
         .tool-btn:hover { background: #2a2a5a; border-color: #00d4ff; transform: translateX(5px); }
+        .tool-btn.active { background: #223052; border-color: #00d4ff; color: #fff; }
         .tool-btn .desc { display: block; font-size: 12px; color: #666; margin-top: 4px; }
 
         main {
@@ -266,20 +267,20 @@
         <aside>
             <div class="tool-section">
                 <h4>🧮 数学计算</h4>
-                <button class="tool-btn" onclick="sendMessageFromAside('2+2等于几？')">
+                <button class="tool-btn" data-chat-key="math-basic" onclick="sendMessageFromAside('math-basic', '2+2等于几？')">
                     基本运算<span class="desc">2+2, 15*25+100 等</span>
                 </button>
-                <button class="tool-btn" onclick="sendMessageFromAside('计算 (100 + 200) / 3 的结果')">
+                <button class="tool-btn" data-chat-key="math-complex" onclick="sendMessageFromAside('math-complex', '计算 (100 + 200) / 3 的结果')">
                     复杂表达式<span class="desc">括号、混合运算</span>
                 </button>
             </div>
 
             <div class="tool-section">
                 <h4>📅 时间查询</h4>
-                <button class="tool-btn" onclick="sendMessageFromAside('现在几点？')">
+                <button class="tool-btn" data-chat-key="time-now" onclick="sendMessageFromAside('time-now', '现在几点？')">
                     当前时间<span class="desc">查询系统时间</span>
                 </button>
-                <button class="tool-btn" onclick="sendMessageFromAside('今天是几号？')">
+                <button class="tool-btn" data-chat-key="date-today" onclick="sendMessageFromAside('date-today', '今天是几号？')">
                     当前日期<span class="desc">查询年月日</span>
                 </button>
             </div>
@@ -293,10 +294,10 @@
 
             <div class="tool-section">
                 <h4>🌐 网页搜索</h4>
-                <button class="tool-btn" onclick="sendMessageFromAside('帮我搜索一下 AI Agent 的最新发展')">
+                <button class="tool-btn" data-chat-key="search-agent" onclick="sendMessageFromAside('search-agent', '帮我搜索一下 AI Agent 的最新发展')">
                     AI Agent 资讯<span class="desc">搜索网络内容</span>
                 </button>
-                <button class="tool-btn" onclick="sendMessageFromAside('搜索一下什么是 RAG 技术')">
+                <button class="tool-btn" data-chat-key="search-rag" onclick="sendMessageFromAside('search-rag', '搜索一下什么是 RAG 技术')">
                     RAG 技术<span class="desc">了解 RAG 概念</span>
                 </button>
             </div>
@@ -307,8 +308,8 @@
             <div id="chatView">
                 <div class="quick-actions">
                     <button class="quick-btn" onclick="clearChat()">🗑️ 清空对话</button>
-                    <button class="quick-btn" onclick="sendMessageFromAside('你是谁？')">❓ 你是谁</button>
-                    <button class="quick-btn" onclick="sendMessageFromAside('今天天气怎么样？')">🌤️ 天气</button>
+                    <button class="quick-btn" onclick="sendMessageFromAside('quick-about', '你是谁？')">❓ 你是谁</button>
+                    <button class="quick-btn" onclick="sendMessageFromAside('quick-weather', '今天天气怎么样？')">🌤️ 天气</button>
                 </div>
                 <div class="chat-area" id="chatArea">
                     <div class="message agent">
@@ -388,6 +389,16 @@
         var isLoading = false;
         var pendingFiles = [];
         var documents = [];
+        var activeChatKey = 'default';
+        var chatSessions = {
+            default: [
+                {
+                    type: 'agent',
+                    content: '欢迎使用 <strong>Agent Loop 控制台</strong>！👋<br><br>我是一个 AI Agent，支持多种工具：<br>• 🧮 数学计算<br>• 📅 时间查询<br>• 📚 知识库检索<br>• 🌐 网页搜索<br><br>点击左侧按钮或直接输入问题开始体验！',
+                    html: true
+                }
+            ]
+        };
 
         // ── View switch (no page reload, aside always intact) ──
         function showChatView() {
@@ -409,6 +420,45 @@
             }
         }
 
+        function ensureChatSession(key) {
+            if (!chatSessions[key]) {
+                chatSessions[key] = [
+                    { type: 'agent', content: '已切换到新的聊天窗口。', html: false }
+                ];
+            }
+        }
+
+        function switchChatSession(key) {
+            activeChatKey = key || 'default';
+            ensureChatSession(activeChatKey);
+            renderChatSession();
+            updateActiveToolButton();
+        }
+
+        function updateActiveToolButton() {
+            var buttons = document.querySelectorAll('.tool-btn[data-chat-key]');
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].classList.toggle('active', buttons[i].getAttribute('data-chat-key') === activeChatKey);
+            }
+        }
+
+        function renderChatSession() {
+            var chatArea = document.getElementById('chatArea');
+            var messages = chatSessions[activeChatKey] || [];
+            var html = '';
+            for (var i = 0; i < messages.length; i++) {
+                html += renderMessage(messages[i]);
+            }
+            chatArea.innerHTML = html;
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function renderMessage(message) {
+            var avatar = message.type === 'user' ? 'U' : 'AI';
+            var content = message.html ? message.content : formatContent(message.content);
+            return '<div class="message ' + message.type + '"><div class="avatar">' + avatar + '</div><div class="message-content">' + content + '</div></div>';
+        }
+
         function sendMessage(msg) {
             var input = document.getElementById('messageInput');
             var message = msg || input.value.trim();
@@ -427,18 +477,17 @@
             .finally(function() { setLoading(false); });
         }
 
-        function sendMessageFromAside(msg) {
+        function sendMessageFromAside(chatKey, msg) {
             showChatView();
+            switchChatSession(chatKey);
             setTimeout(function() { sendMessage(msg); }, 10);
         }
 
         function addMessage(content, type) {
+            ensureChatSession(activeChatKey);
+            chatSessions[activeChatKey].push({ type: type, content: content, html: false });
             var chatArea = document.getElementById('chatArea');
-            var avatar = type === 'user' ? 'U' : 'AI';
-            var div = document.createElement('div');
-            div.className = 'message ' + type;
-            div.innerHTML = '<div class="avatar">' + avatar + '</div><div class="message-content">' + formatContent(content) + '</div>';
-            chatArea.appendChild(div);
+            chatArea.insertAdjacentHTML('beforeend', renderMessage({ type: type, content: content, html: false }));
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
@@ -469,8 +518,10 @@
         }
 
         function clearChat() {
-            document.getElementById('chatArea').innerHTML =
-                '<div class="message agent"><div class="avatar">AI</div><div class="message-content">对话已清空，开始新对话吧！</div></div>';
+            chatSessions[activeChatKey] = [
+                { type: 'agent', content: '对话已清空，开始新对话吧！', html: false }
+            ];
+            renderChatSession();
         }
 
         // ── Drag & drop ──
