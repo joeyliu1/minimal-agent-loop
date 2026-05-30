@@ -56,6 +56,35 @@ public class RetrievalService {
     }
 
     /**
+     * Retrieve with similarity score as float — used to gate RAG usage.
+     */
+    public List<RetrievedDocumentWithScore> retrieveWithScore(String query, int topK) {
+        SearchRequest request = SearchRequest.builder()
+                .query(query)
+                .topK(topK)
+                .build();
+        List<Document> results = vectorStore.similaritySearch(request);
+
+        return results.stream()
+                .map(doc -> {
+                    String scoreStr = doc.getMetadata().getOrDefault("score", "0.0").toString();
+                    float score;
+                    try {
+                        score = Float.parseFloat(scoreStr);
+                    } catch (NumberFormatException e) {
+                        score = 0.0f;
+                    }
+                    return new RetrievedDocumentWithScore(
+                            doc.getId(),
+                            doc.getText(),
+                            doc.getMetadata().getOrDefault("source", "unknown").toString(),
+                            score
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Generate answer with citations from retrieved documents.
      */
     public String answerWithCitations(String query, List<RetrievedDocument> docs) {
@@ -99,6 +128,47 @@ public class RetrievalService {
     }
 
     /**
+     * Generate answer from scored documents (used by AgentService RAG gate).
+     */
+    public String answerFromScoredDocs(String query, List<RetrievedDocumentWithScore> docs) {
+        if (docs.isEmpty()) {
+            return "No relevant documents found. Please try a different query.";
+        }
+        StringBuilder contextBuilder = new StringBuilder();
+        for (int i = 0; i < docs.size(); i++) {
+            RetrievedDocumentWithScore d = docs.get(i);
+            contextBuilder.append(String.format("【文档%d - 来源: %s】\n%s\n\n",
+                    i + 1, d.source(), d.content()));
+        }
+        String context = contextBuilder.toString().trim();
+
+        PromptTemplate template = new PromptTemplate("""
+                你是一个严格的问答助手。
+
+                ## 知识库（这是你唯一的参考来源）
+                {context}
+
+                ## 用户问题
+                {question}
+
+                ## 严格规则
+                1. 只使用知识库中存在的文字来回答，不要添加任何知识库中没有的信息
+                2. 如果知识库中没有能回答问题的内容，回复："抱歉，知识库中没有相关信息"
+                3. 回答中的事实必须来自知识库，禁止编造或补充
+                4. 在回答末尾必须标注来源，格式：[来源: xxx]
+                5. 如果使用了多条文档，标注所有来源：[来源: xxx] [来源: yyy]
+                """);
+
+        Prompt prompt = template.create(Map.of("context", context, "question", query));
+
+        String answer = chatClient.prompt(prompt)
+                .call()
+                .content();
+
+        return answer != null ? answer : "[error] Failed to generate answer";
+    }
+
+    /**
      * Full RAG flow: retrieve + answer with citations.
      */
     public String ragAnswer(String query, int topK) {
@@ -106,8 +176,6 @@ public class RetrievalService {
         return answerWithCitations(query, docs);
     }
 
-    /**
-     * Retrieved document metadata.
-     */
     public record RetrievedDocument(String id, String content, String source, String score) {}
+    public record RetrievedDocumentWithScore(String id, String content, String source, float score) {}
 }

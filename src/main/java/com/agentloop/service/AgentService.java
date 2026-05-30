@@ -23,16 +23,17 @@ public class AgentService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
     private final RetrievalService retrievalService;
     private final ChatMemoryService memoryService;
     private final int maxSteps;
     private final long timeoutSeconds;
+    private final ExecutorService agentExecutor = Executors.newCachedThreadPool();
 
     public AgentService(
                 RetrievalService retrievalService,
                 ChatMemoryService memoryService,
-                ChatClient.Builder chatClientBuilder,
+                ChatClient chatClient,
                 WebSearchTool webSearchTool,
                 MathTool mathTool,
                 FileReadTool fileReadTool,
@@ -42,19 +43,7 @@ public class AgentService {
         ) {
         this.retrievalService = retrievalService;
         this.memoryService = memoryService;
-        this.chatClientBuilder = chatClientBuilder
-                .defaultSystem("""
-                    You are a helpful AI agent, developed by JoeyLiu.
-
-                    IMPORTANT RULES:
-                    1. When answering questions about facts, information, or knowledge — use rag_query tool first to search the knowledge base
-                    2. If you add documents to the knowledge base, ALWAYS verify with rag_query that they were stored correctly
-                    3. For math, date, file questions — use the appropriate tool
-                    4. If a tool returns results, cite them in your answer using [来源: xxx] format
-                    5. NEVER make up information. Only answer based on tool results or explicitly provided facts
-                    """)
-                .defaultTools(webSearchTool, mathTool, fileReadTool, currentDateTool, ragTool)
-                .build();
+        this.chatClient = chatClient;
         this.maxSteps = properties.getMaxSteps();
         this.timeoutSeconds = properties.getTimeoutSeconds();
         log.info("AgentService initialized: maxSteps={}, timeout={}s", maxSteps, timeoutSeconds);
@@ -67,14 +56,8 @@ public class AgentService {
     public String execute(String sessionId, String userMessage) {
         log.info("AgentService.execute session={} message={}", sessionId, userMessage);
         try {
-            ExecutorService exec = Executors.newSingleThreadExecutor();
-            try {
-                Future<String> future = exec.submit(() -> loop(sessionId, userMessage));
-                String result = future.get(timeoutSeconds, TimeUnit.SECONDS);
-                return result;
-            } finally {
-                exec.shutdownNow();
-            }
+            Future<String> future = agentExecutor.submit(() -> loop(sessionId, userMessage));
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             log.warn("Agent loop timeout after {}s", timeoutSeconds);
             return "[timeout] exceeded " + timeoutSeconds + "s";
@@ -88,19 +71,23 @@ public class AgentService {
         // Load session history for context
         List<ChatMessage> history = memoryService.getRecentMessages(sessionId);
 
-        // Detect knowledge question
+        // Always retrieve from knowledge base first — use similarity score to decide
         String ragResult = null;
-        boolean isKnowledge = isKnowledgeQuestion(userMessage);
-        if (isKnowledge) {
-            try {
-                ragResult = CompletableFuture.supplyAsync(() -> retrievalService.ragAnswer(userMessage, 3))
-                        .get(30, TimeUnit.SECONDS);
+        try {
+            var docs = CompletableFuture.supplyAsync(
+                    () -> retrievalService.retrieveWithScore(userMessage, 3))
+                .get(30, TimeUnit.SECONDS);
+            // Use result only if score is high enough (> 0.5), otherwise skip RAG
+            if (docs != null && !docs.isEmpty() && docs.get(0).score() > 0.5f) {
+                ragResult = retrievalService.answerFromScoredDocs(userMessage, docs);
                 log.info("RAG result: {}", ragResult);
-            } catch (TimeoutException e) {
-                log.warn("RAG query timed out after 30s, proceeding without knowledge base");
-            } catch (Exception e) {
-                log.error("RAG query failed: {}", e.getMessage());
+            } else {
+                log.info("Low similarity score, skipping RAG");
             }
+        } catch (TimeoutException e) {
+            log.warn("RAG query timed out after 30s, proceeding without knowledge base");
+        } catch (Exception e) {
+            log.error("RAG query failed: {}", e.getMessage());
         }
 
         for (int step = 0; step < maxSteps; step++) {
@@ -112,9 +99,7 @@ public class AgentService {
                     boolean ragHasContent = !ragLower.contains("没有相关信息") && !ragLower.contains("no relevant");
 
                     if (ragHasContent) {
-                        content = ChatClient.builder()
-                                .build()
-                                .prompt()
+                        content = chatClient.prompt()
                                 .user(String.format("""
                                     You have access to a knowledge base. Here is the search result:
 
@@ -138,9 +123,7 @@ public class AgentService {
                     ragResult = null;
                 } else {
                     // Build prompt with history
-                    var promptBuilder = ChatClient.builder()
-                            .build()
-                            .prompt();
+                    var promptBuilder = chatClient.prompt();
 
                     // Re-play history
                     for (ChatMessage msg : history) {
@@ -171,17 +154,4 @@ public class AgentService {
         return "[max_steps] reached limit (" + maxSteps + ")";
     }
 
-    private boolean isKnowledgeQuestion(String message) {
-        String lower = message.toLowerCase();
-        if (lower.contains("你是谁") || lower.contains("你是干什么") || lower.contains("你能做")
-                || lower.contains("介绍一下你") || lower.contains("关于你")) {
-            return false;
-        }
-        return lower.contains("是什么") || lower.contains("什么是")
-                || lower.contains("是谁") || lower.contains("谁在") || lower.contains("查")
-                || lower.contains("介绍") || lower.contains("解释")
-                || lower.contains("原理") || lower.contains("概念")
-                || lower.contains("查一下") || lower.contains("查询")
-                || (message.length() < 50 && message.contains("?"));
-    }
 }

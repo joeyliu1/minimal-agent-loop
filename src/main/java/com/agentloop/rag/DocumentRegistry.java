@@ -8,8 +8,6 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,21 +35,6 @@ public class DocumentRegistry {
         this.vectorStore = vectorStore;
         this.chunker = chunker;
         this.embeddingModel = embeddingModel;
-    }
-
-    @PostConstruct
-    public void load() {
-        System.out.println("[DocumentRegistry] Starting, Milvus is source of truth — no JSON backup.");
-        System.out.println("[DocumentRegistry] VectorStore bean: " + vectorStore.getClass().getName());
-
-        // Diagnose which Milvus we're actually connected to
-        try {
-            String host = vectorStore.getClass().getDeclaredField("host").get(vectorStore).toString();
-            String port = vectorStore.getClass().getDeclaredField("port").get(vectorStore).toString();
-            System.out.println("[DocumentRegistry] Milvus connection: " + host + ":" + port);
-        } catch (Exception e) {
-            System.out.println("[DocumentRegistry] Cannot read host/port from VectorStore: " + e.getMessage());
-        }
     }
 
     private synchronized void reindex(String content, String source) {

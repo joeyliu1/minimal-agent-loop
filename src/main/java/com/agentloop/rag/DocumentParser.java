@@ -1,5 +1,7 @@
 package com.agentloop.rag;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -46,48 +48,31 @@ public class DocumentParser {
         return extractJsonText(json);
     }
 
-    private String extractJsonText(String json) {
-        StringBuilder sb = new StringBuilder();
-        boolean inString = false;
-        boolean escaped = false;
-        boolean capture = false;
-        StringBuilder current = new StringBuilder();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-        for (int i = 0; i < json.length(); i++) {
-            char c = json.charAt(i);
-            if (escaped) {
-                current.append(c);
-                escaped = false;
-                continue;
-            }
-            if (c == '\\' && inString) {
-                escaped = true;
-                current.append(c);
-                continue;
-            }
-            if (c == '"') {
-                if (inString) {
-                    // End of string
-                    if (capture) {
-                        sb.append(current).append("\n");
-                    }
-                    current = new StringBuilder();
-                    capture = false;
-                } else {
-                    // Start of string
-                    inString = true;
-                }
-                continue;
-            }
-            if (inString) {
-                current.append(c);
-                // Capture string content if it looks like prose
-                if (current.length() > 10 && !current.toString().matches(".*[{}:\\[\\],].*")) {
-                    capture = true;
-                }
+    private String extractJsonText(String json) {
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            StringBuilder sb = new StringBuilder();
+            extractTextFromNode(root, sb);
+            return sb.toString().trim();
+        } catch (Exception e) {
+            // Fallback: return raw json if parsing fails
+            return json;
+        }
+    }
+
+    private void extractTextFromNode(JsonNode node, StringBuilder sb) {
+        if (node.isTextual()) {
+            String text = node.asText().trim();
+            if (!text.isEmpty()) sb.append(text).append("\n");
+        } else if (node.isArray()) {
+            for (JsonNode child : node) extractTextFromNode(child, sb);
+        } else if (node.isObject()) {
+            for (java.util.Iterator<String> it = node.fieldNames(); it.hasNext(); ) {
+                extractTextFromNode(node.get(it.next()), sb);
             }
         }
-        return sb.toString().trim();
     }
 
     private String parseXml(MultipartFile file) throws Exception {

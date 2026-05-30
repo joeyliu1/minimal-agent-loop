@@ -33,7 +33,7 @@ public class AgentApplication {
                     runInteractive(agentService);
                 } else {
                     String message = String.join(" ", args);
-                    System.out.println(agentService.execute(message));
+                    System.out.println(agentService.execute("cli", message));
                 }
             }
         };
@@ -46,7 +46,7 @@ public class AgentApplication {
             System.out.print("You: ");
             String input = scanner.nextLine().trim();
             if (input.isEmpty() || "exit".equalsIgnoreCase(input)) break;
-            System.out.println("Agent: " + agentService.execute(input) + "\n");
+            System.out.println("Agent: " + agentService.execute("cli", input) + "\n");
         }
     }
 }
