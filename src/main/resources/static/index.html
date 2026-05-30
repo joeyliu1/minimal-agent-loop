@@ -428,10 +428,9 @@
         }
 
         function sendMessageFromAside(msg) {
-            showChatView();
-            setTimeout(function() { sendMessage(msg); }, 10);
-        }
-
+                    showChatView();
+                    setTimeout(function() { sendMessage(msg); }, 10);
+                }
         function addMessage(content, type) {
             var chatArea = document.getElementById('chatArea');
             var avatar = type === 'user' ? 'U' : 'AI';
