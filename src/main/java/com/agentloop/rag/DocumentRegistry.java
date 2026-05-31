@@ -1,48 +1,40 @@
 package com.agentloop.rag;
 
-import io.milvus.client.MilvusClient;
-import io.milvus.param.ConnectParam;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Document registry backed by Milvus vector store.
- * Metadata kept in memory; vector data in Milvus.
- * No JSON file persistence — Milvus is the source of truth.
+ * Metadata is persisted in MySQL; vector data is stored in Milvus.
  */
 @Service
 public class DocumentRegistry {
 
     private final VectorStore vectorStore;
     private final DocumentChunker chunker;
-    private final EmbeddingModel embeddingModel;
+    private final JdbcTemplate jdbc;
 
     /** DashScope embedding API accepts max 25 texts per call */
     private static final int EMBEDDING_BATCH_SIZE = 25;
 
-    private record DocumentRecord(String id, String content, String source) {}
-
-    private final List<DocumentRecord> documentRegistry = new ArrayList<>();
-
-    public DocumentRegistry(VectorStore vectorStore, DocumentChunker chunker, EmbeddingModel embeddingModel) {
+    public DocumentRegistry(VectorStore vectorStore, DocumentChunker chunker, JdbcTemplate jdbc) {
         this.vectorStore = vectorStore;
         this.chunker = chunker;
-        this.embeddingModel = embeddingModel;
+        this.jdbc = jdbc;
     }
 
     @PostConstruct
     public void load() {
-        System.out.println("[DocumentRegistry] Starting, Milvus is source of truth — no JSON backup.");
+        System.out.println("[DocumentRegistry] Starting, MySQL stores document metadata and Milvus stores vectors.");
         System.out.println("[DocumentRegistry] VectorStore bean: " + vectorStore.getClass().getName());
+        System.out.println("[DocumentRegistry] persisted document chunks: " + countDocuments());
 
         // Diagnose which Milvus we're actually connected to
         try {
@@ -55,7 +47,7 @@ public class DocumentRegistry {
     }
 
     private synchronized void reindex(String content, String source) {
-        if (documentRegistry.stream().anyMatch(r -> r.content().equals(content))) return;
+        if (existsContent(content)) return;
 
         List<DocumentChunker.DocumentChunk> chunks = chunker.chunk(content, source);
         List<Document> docs = chunks.stream()
@@ -65,14 +57,12 @@ public class DocumentRegistry {
 
         System.out.println("[DocumentRegistry] reindex: adding " + docs.size() + " chunks to vectorStore");
         addDocumentsBatched(docs);
-        for (var chunk : chunks) {
-            documentRegistry.add(new DocumentRecord(chunk.id(), chunk.content(), source));
-        }
+        saveChunks(chunks);
     }
 
     public synchronized void addDocument(String content, String source) {
         System.out.println("[DocumentRegistry] addDocument called — vectorStore class: " + vectorStore.getClass().getName());
-        if (documentRegistry.stream().anyMatch(r -> r.content().equals(content))) {
+        if (existsContent(content)) {
             System.out.println("[DocumentRegistry] duplicate content, skipping");
             return;
         }
@@ -87,10 +77,8 @@ public class DocumentRegistry {
         System.out.println("[DocumentRegistry] calling vectorStore.add() in batches of " + EMBEDDING_BATCH_SIZE + "...");
         addDocumentsBatched(docs);
         System.out.println("[DocumentRegistry] vectorStore.add() completed");
-        for (var chunk : chunks) {
-            documentRegistry.add(new DocumentRecord(chunk.id(), chunk.content(), source));
-        }
-        System.out.println("[DocumentRegistry] documentRegistry now has " + documentRegistry.size() + " entries");
+        saveChunks(chunks);
+        System.out.println("[DocumentRegistry] persisted document chunks: " + countDocuments());
     }
 
     /**
@@ -106,7 +94,7 @@ public class DocumentRegistry {
     }
 
     public synchronized void deleteDocument(String id) {
-        documentRegistry.removeIf(r -> r.id().equals(id));
+        jdbc.update("DELETE FROM rag_documents WHERE id = ?", id);
         vectorStore.delete(List.of(id));
     }
 
@@ -116,12 +104,42 @@ public class DocumentRegistry {
         } catch (Exception e) {
             System.err.println("[DocumentRegistry] Clear failed: " + e.getMessage());
         }
-        documentRegistry.clear();
+        jdbc.update("DELETE FROM rag_documents");
     }
 
     public List<Map<String, String>> listDocuments() {
-        return documentRegistry.stream()
-            .map(r -> Map.of("id", r.id(), "content", r.content(), "source", r.source()))
-            .toList();
+        return jdbc.query(
+                "SELECT id, content, source FROM rag_documents ORDER BY created_at DESC, id DESC",
+                (rs, rowNum) -> Map.of(
+                        "id", rs.getString("id"),
+                        "content", rs.getString("content"),
+                        "source", rs.getString("source")
+                )
+        );
+    }
+
+    private boolean existsContent(String content) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM rag_documents WHERE content = ?",
+                Integer.class,
+                content
+        );
+        return count != null && count > 0;
+    }
+
+    private void saveChunks(List<DocumentChunker.DocumentChunk> chunks) {
+        for (var chunk : chunks) {
+            jdbc.update(
+                    "INSERT INTO rag_documents (id, content, source) VALUES (?, ?, ?)",
+                    chunk.id(),
+                    chunk.content(),
+                    chunk.source()
+            );
+        }
+    }
+
+    private int countDocuments() {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM rag_documents", Integer.class);
+        return count != null ? count : 0;
     }
 }

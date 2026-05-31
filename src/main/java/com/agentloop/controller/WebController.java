@@ -37,9 +37,10 @@ public class WebController {
     }
 
     @PostMapping("/api/chat")
-    public Map<String, String> chat(@RequestBody Map<String, String> request) {
-        String message = request.get("message");
-        String response = agentService.execute(message);
+    public Map<String, String> chat(@RequestBody Map<String, Object> request) {
+        String message = String.valueOf(request.getOrDefault("message", ""));
+        boolean useKnowledgeBase = Boolean.parseBoolean(String.valueOf(request.getOrDefault("useKnowledgeBase", true)));
+        String response = agentService.execute(message, useKnowledgeBase);
         return Map.of("response", response);
     }
 

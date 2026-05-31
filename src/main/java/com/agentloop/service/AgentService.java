@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.*;
@@ -20,14 +21,15 @@ public class AgentService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);
 
-    private final ChatClient chatClient;
+    private final ChatClient knowledgeChatClient;
+    private final ChatClient directChatClient;
     private final RetrievalService retrievalService;
     private final int maxSteps;
     private final long timeoutSeconds;
 
     public AgentService(
                 RetrievalService retrievalService,
-                ChatClient.Builder chatClientBuilder,
+                ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                 WebSearchTool webSearchTool,
                 MathTool mathTool,
                 FileReadTool fileReadTool,
@@ -36,7 +38,7 @@ public class AgentService {
                 AgentProperties properties
         ) {
             this.retrievalService = retrievalService;
-            this.chatClient = chatClientBuilder
+            this.knowledgeChatClient = chatClientBuilderProvider.getObject()
                     .defaultSystem("""
                     You are a helpful AI agent, developed by JoeyLiu.
 
@@ -49,6 +51,18 @@ public class AgentService {
                     """)
                     .defaultTools(webSearchTool, mathTool, fileReadTool, currentDateTool, ragTool)
                     .build();
+            this.directChatClient = chatClientBuilderProvider.getObject()
+                    .defaultSystem("""
+                    You are a helpful AI agent, developed by JoeyLiu.
+
+                    IMPORTANT RULES:
+                    1. Answer directly from your general knowledge unless the user explicitly provides facts in the prompt
+                    2. For math, date, file questions — use the appropriate tool
+                    3. Do not use or mention the local knowledge base in this mode
+                    4. If a tool returns results, cite them in your answer using [来源: xxx] format
+                    """)
+                    .defaultTools(webSearchTool, mathTool, fileReadTool, currentDateTool)
+                    .build();
             this.maxSteps = properties.getMaxSteps();
             this.timeoutSeconds = properties.getTimeoutSeconds();
             log.info("AgentService initialized: maxSteps={}, timeout={}s", maxSteps, timeoutSeconds);
@@ -59,10 +73,14 @@ public class AgentService {
      * Blocks up to `timeoutSeconds`.
      */
     public String execute(String userMessage) {
-        log.info("AgentService.execute called with: {}", userMessage);
+        return execute(userMessage, true);
+    }
+
+    public String execute(String userMessage, boolean useKnowledgeBase) {
+        log.info("AgentService.execute called with: {}, useKnowledgeBase={}", userMessage, useKnowledgeBase);
         try {
             ExecutorService exec = Executors.newSingleThreadExecutor();
-            Future<String> future = exec.submit(() -> loop(userMessage));
+            Future<String> future = exec.submit(() -> loop(userMessage, useKnowledgeBase));
             String result = future.get(timeoutSeconds, TimeUnit.SECONDS);
             exec.shutdownNow();
             return result;
@@ -75,15 +93,16 @@ public class AgentService {
         }
     }
 
-    private String loop(String userMessage) {
+    private String loop(String userMessage, boolean useKnowledgeBase) {
         // For knowledge-based questions, automatically query knowledge base first
         String ragResult = null;
-        boolean isKnowledgeQuestion = isKnowledgeQuestion(userMessage);
+        boolean isKnowledgeQuestion = useKnowledgeBase && isKnowledgeQuestion(userMessage);
+        ChatClient activeChatClient = useKnowledgeBase ? knowledgeChatClient : directChatClient;
 
         if (isKnowledgeQuestion) {
             log.info("Detected knowledge question, querying RAG first...");
             try {
-                ragResult = retrievalService.ragAnswer(userMessage, 3);
+                ragResult = retrievalService.ragAnswer(userMessage, 5);
                 log.info("RAG result: {}", ragResult);
             } catch (Exception e) {
                 log.error("RAG query failed: {}", e.getMessage());
@@ -100,7 +119,7 @@ public class AgentService {
                     
                     if (ragHasContent) {
                         // RAG found relevant content, use it
-                        content = chatClient.prompt()
+                        content = activeChatClient.prompt()
                                 .user(String.format("""
                                     You have access to a knowledge base. Here is the search result:
                                     
@@ -125,7 +144,7 @@ public class AgentService {
                     }
                     ragResult = null;
                 } else {
-                    content = chatClient.prompt()
+                    content = activeChatClient.prompt()
                             .user(userMessage)
                             .advisors(new SimpleLoggerAdvisor())
                             .call()

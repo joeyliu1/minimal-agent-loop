@@ -114,6 +114,26 @@
         .message.agent .message-content { background: #16213e; border-radius: 12px 12px 12px 4px; }
         .message-content code { background: #0a0a15; padding: 2px 6px; border-radius: 4px; font-family: 'Fira Code', monospace; font-size: 13px; }
         .message-content pre { background: #0a0a15; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+        .chat-options {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 10px;
+            color: #888;
+            font-size: 13px;
+        }
+        .chat-options label {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .chat-options input {
+            width: 15px;
+            height: 15px;
+            accent-color: #00d4ff;
+        }
         .input-area { display: flex; gap: 12px; }
         #messageInput {
             flex: 1; padding: 15px 20px; background: #1e1e3f; border: 1px solid #2a2a4a;
@@ -325,6 +345,12 @@
                         </div>
                     </div>
                 </div>
+                <div class="chat-options">
+                    <label>
+                        <input type="checkbox" id="useKnowledgeBase" checked>
+                        使用知识库
+                    </label>
+                </div>
                 <div class="input-area">
                     <input type="text" id="messageInput" placeholder="输入问题，按 Enter 发送..." onkeypress="handleKeyPress(event)">
                     <button id="sendBtn" onclick="sendMessage()">发送</button>
@@ -469,7 +495,10 @@
             fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: message })
+                body: JSON.stringify({
+                    message: message,
+                    useKnowledgeBase: document.getElementById('useKnowledgeBase').checked
+                })
             })
             .then(function(res) { return res.json(); })
             .then(function(data) { addMessage(data.response || '无响应', 'agent'); })
@@ -478,6 +507,7 @@
         }
 
         function sendMessageFromAside(chatKey, msg) {
+            if (isLoading) return;
             showChatView();
             switchChatSession(chatKey);
             setTimeout(function() { sendMessage(msg); }, 10);
