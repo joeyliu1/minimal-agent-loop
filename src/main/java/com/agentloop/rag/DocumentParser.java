@@ -6,8 +6,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Parse various file formats into text content.
@@ -41,53 +45,41 @@ public class DocumentParser {
         return new String(file.getBytes(), StandardCharsets.UTF_8);
     }
 
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+
     private String parseJson(MultipartFile file) throws Exception {
         String json = new String(file.getBytes(), StandardCharsets.UTF_8);
         return extractJsonText(json);
     }
 
+    /**
+     * Walk a JSON tree and collect string values plus numeric/boolean nodes
+     * into a plain-text representation suitable for chunking/embedding.
+     */
     private String extractJsonText(String json) {
-        StringBuilder sb = new StringBuilder();
-        boolean inString = false;
-        boolean escaped = false;
-        boolean capture = false;
-        StringBuilder current = new StringBuilder();
-
-        for (int i = 0; i < json.length(); i++) {
-            char c = json.charAt(i);
-            if (escaped) {
-                current.append(c);
-                escaped = false;
-                continue;
-            }
-            if (c == '\\' && inString) {
-                escaped = true;
-                current.append(c);
-                continue;
-            }
-            if (c == '"') {
-                if (inString) {
-                    // End of string
-                    if (capture) {
-                        sb.append(current).append("\n");
-                    }
-                    current = new StringBuilder();
-                    capture = false;
-                } else {
-                    // Start of string
-                    inString = true;
-                }
-                continue;
-            }
-            if (inString) {
-                current.append(c);
-                // Capture string content if it looks like prose
-                if (current.length() > 10 && !current.toString().matches(".*[{}:\\[\\],].*")) {
-                    capture = true;
-                }
-            }
+        try {
+            JsonNode root = JSON_MAPPER.readTree(json);
+            StringBuilder sb = new StringBuilder();
+            walk(root, sb);
+            return sb.toString().trim();
+        } catch (Exception e) {
+            // Malformed JSON: fall back to raw text so the user still gets something
+            return json;
         }
-        return sb.toString().trim();
+    }
+
+    private void walk(JsonNode node, StringBuilder sb) {
+        if (node == null) return;
+        if (node.isObject()) {
+            node.fields().forEachRemaining(e -> walk(e.getValue(), sb));
+        } else if (node.isArray()) {
+            node.forEach(child -> walk(child, sb));
+        } else if (node.isTextual()) {
+            String s = node.asText();
+            if (!s.isBlank()) sb.append(s).append('\n');
+        } else if (node.isNumber() || node.isBoolean()) {
+            sb.append(node.asText()).append('\n');
+        }
     }
 
     private String parseXml(MultipartFile file) throws Exception {
@@ -150,7 +142,11 @@ public class DocumentParser {
     }
 
     private String parsePdf(MultipartFile file) throws Exception {
-        // Simple PDF text extraction - only works for text-based PDFs
+        // Minimal PDF text extraction. Scans for BT/ET (Begin/End text) operators
+        // and collects ASCII bytes between them. Only works for uncompressed,
+        // ASCII-only PDFs (CJK or compressed-stream PDFs will yield empty/garbled
+        // output). For full PDF support, add Apache PDFBox to pom.xml and use
+        // PDFTextStripper here.
         byte[] bytes = file.getBytes();
         StringBuilder sb = new StringBuilder();
         StringBuilder token = new StringBuilder();
@@ -185,7 +181,12 @@ public class DocumentParser {
                 token.setLength(0);
             }
         }
-        return sb.toString().trim();
+        String result = sb.toString().trim();
+        if (result.isEmpty()) {
+            return "[PDF 解析受限] 当前内置解析器仅支持未压缩的 ASCII PDF。"
+                    + "如需支持 CJK/压缩 PDF，请引入 Apache PDFBox 依赖并改用 PDFTextStripper。";
+        }
+        return result;
     }
 
     private String parseDocx(MultipartFile file) throws Exception {
@@ -226,8 +227,16 @@ public class DocumentParser {
         return result.isEmpty() ? "(ZIP包内无文本文件)" : result;
     }
 
+    private static final Set<String> TEXT_EXTENSIONS = Set.of(
+            "txt", "md", "csv", "json", "xml", "html", "htm",
+            "java", "py", "js", "ts", "go", "sql", "rb", "php",
+            "yml", "yaml", "properties", "css", "sh", "kt", "swift"
+    );
+
     private boolean isTextFile(String name) {
-        String ext = name.contains(".") ? name.substring(name.lastIndexOf(".") + 1).toLowerCase() : "";
-        return ext.matches("txt|md|csv|json|xml|html|htm|java|py|js|ts|go|sql|yml|yaml|properties|css|js|ts");
+        int dot = name.lastIndexOf('.');
+        if (dot < 0 || dot == name.length() - 1) return false;
+        String ext = name.substring(dot + 1).toLowerCase();
+        return TEXT_EXTENSIONS.contains(ext);
     }
 }

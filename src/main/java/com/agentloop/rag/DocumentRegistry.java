@@ -4,8 +4,10 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Map;
@@ -15,6 +17,7 @@ import java.util.Map;
  * Metadata is persisted in MySQL; vector data is stored in Milvus.
  */
 @Service
+@Slf4j
 public class DocumentRegistry {
 
     private final VectorStore vectorStore;
@@ -32,53 +35,52 @@ public class DocumentRegistry {
 
     @PostConstruct
     public void load() {
-        System.out.println("[DocumentRegistry] Starting, MySQL stores document metadata and Milvus stores vectors.");
-        System.out.println("[DocumentRegistry] VectorStore bean: " + vectorStore.getClass().getName());
-        System.out.println("[DocumentRegistry] persisted document chunks: " + countDocuments());
-
-        // Diagnose which Milvus we're actually connected to
-        try {
-            String host = vectorStore.getClass().getDeclaredField("host").get(vectorStore).toString();
-            String port = vectorStore.getClass().getDeclaredField("port").get(vectorStore).toString();
-            System.out.println("[DocumentRegistry] Milvus connection: " + host + ":" + port);
-        } catch (Exception e) {
-            System.out.println("[DocumentRegistry] Cannot read host/port from VectorStore: " + e.getMessage());
-        }
+        log.info("DocumentRegistry starting — vector store: {}, persisted chunks: {}",
+                vectorStore.getClass().getSimpleName(), countDocuments());
     }
 
-    private synchronized void reindex(String content, String source) {
-        if (existsContent(content)) return;
-
-        List<DocumentChunker.DocumentChunk> chunks = chunker.chunk(content, source);
-        List<Document> docs = chunks.stream()
-            .map(chunk -> new Document(chunk.id(), chunk.content(),
-                Map.of("source", source, "chunk_id", chunk.id(), "content", chunk.content())))
-            .toList();
-
-        System.out.println("[DocumentRegistry] reindex: adding " + docs.size() + " chunks to vectorStore");
-        addDocumentsBatched(docs);
-        saveChunks(chunks);
-    }
-
+    @Transactional
     public synchronized void addDocument(String content, String source) {
-        System.out.println("[DocumentRegistry] addDocument called — vectorStore class: " + vectorStore.getClass().getName());
+        log.info("addDocument called — vector store: {}", vectorStore.getClass().getSimpleName());
         if (existsContent(content)) {
-            System.out.println("[DocumentRegistry] duplicate content, skipping");
+            log.info("duplicate content, skipping");
             return;
         }
 
         List<DocumentChunker.DocumentChunk> chunks = chunker.chunk(content, source);
-        System.out.println("[DocumentRegistry] chunked into " + chunks.size() + " chunks");
+        log.info("chunked into {} chunks", chunks.size());
         List<Document> docs = chunks.stream()
             .map(chunk -> new Document(chunk.id(), chunk.content(),
                 Map.of("source", source, "chunk_id", chunk.id(), "content", chunk.content())))
             .toList();
 
-        System.out.println("[DocumentRegistry] calling vectorStore.add() in batches of " + EMBEDDING_BATCH_SIZE + "...");
-        addDocumentsBatched(docs);
-        System.out.println("[DocumentRegistry] vectorStore.add() completed");
-        saveChunks(chunks);
-        System.out.println("[DocumentRegistry] persisted document chunks: " + countDocuments());
+        // Write to vector store FIRST. If MySQL fails afterwards, compensate by
+        // removing the vectors we just added — keeps Milvus and MySQL in sync.
+        // (Cross-store atomicity between MySQL and Milvus isn't achievable with
+        // a single local transaction; this is the best we can do without an
+        // outbox/saga pattern.)
+        log.info("calling vectorStore.add() in batches of {}...", EMBEDDING_BATCH_SIZE);
+        try {
+            addDocumentsBatched(docs);
+        } catch (Exception e) {
+            log.error("vectorStore.add() failed, nothing to roll back: {}", e.getMessage());
+            throw e;
+        }
+        log.info("vectorStore.add() completed");
+
+        try {
+            saveChunks(chunks);
+        } catch (Exception e) {
+            log.error("MySQL save failed, compensating with vectorStore.delete(): {}", e.getMessage());
+            try {
+                List<String> ids = chunks.stream().map(DocumentChunker.DocumentChunk::id).toList();
+                vectorStore.delete(ids);
+            } catch (Exception ce) {
+                log.error("Compensation delete failed: {}", ce.getMessage());
+            }
+            throw e;
+        }
+        log.info("persisted document chunks: {}", countDocuments());
     }
 
     /**
@@ -88,7 +90,7 @@ public class DocumentRegistry {
         for (int i = 0; i < docs.size(); i += EMBEDDING_BATCH_SIZE) {
             int end = Math.min(i + EMBEDDING_BATCH_SIZE, docs.size());
             List<Document> batch = docs.subList(i, end);
-            System.out.println("[DocumentRegistry]   batch " + (i / EMBEDDING_BATCH_SIZE + 1) + " (" + batch.size() + " docs)");
+            log.info("  batch {} ({} docs)", (i / EMBEDDING_BATCH_SIZE + 1), batch.size());
             vectorStore.add(batch);
         }
     }
@@ -99,12 +101,35 @@ public class DocumentRegistry {
     }
 
     public synchronized void clear() {
+        // MySQL is the source of truth for IDs. Read them first, then
+        // delete the corresponding vectors from the vector store, then wipe MySQL.
+        // vectorStore.delete(List.of()) is a no-op on Milvus, so we must enumerate.
+        List<String> allIds;
         try {
-            vectorStore.delete(List.of());
+            allIds = jdbc.query(
+                    "SELECT id FROM rag_documents",
+                    (rs, rowNum) -> rs.getString("id")
+            );
         } catch (Exception e) {
-            System.err.println("[DocumentRegistry] Clear failed: " + e.getMessage());
+            log.error("Failed to read ids for clear: {}", e.getMessage());
+            allIds = List.of();
         }
-        jdbc.update("DELETE FROM rag_documents");
+
+        if (!allIds.isEmpty()) {
+            try {
+                vectorStore.delete(allIds);
+                log.info("Cleared {} vectors from vector store", allIds.size());
+            } catch (Exception e) {
+                log.error("Vector delete failed: {}", e.getMessage());
+            }
+        }
+
+        try {
+            int rows = jdbc.update("DELETE FROM rag_documents");
+            log.info("Cleared {} metadata rows from MySQL", rows);
+        } catch (Exception e) {
+            log.error("MySQL clear failed: {}", e.getMessage());
+        }
     }
 
     public List<Map<String, String>> listDocuments() {

@@ -78,10 +78,13 @@ public class WebController {
 
     @PostMapping("/api/rag/add")
     public Map<String, String> ragAdd(@RequestBody Map<String, String> request) {
-        String content = request.get("content");
+        String content = request == null ? null : request.get("content");
+        if (content == null || content.isBlank()) {
+            return Map.of("status", "error", "message", "content 不能为空");
+        }
         String source = request.getOrDefault("source", "用户添加");
         indexingService.addDocument(content, source);
-        return Map.of("status", "ok", "message", "已添加: " + content);
+        return Map.of("status", "ok", "message", "已添加");
     }
 
     @DeleteMapping("/api/rag/clear")

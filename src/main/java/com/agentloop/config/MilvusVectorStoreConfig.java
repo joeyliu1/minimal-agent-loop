@@ -25,6 +25,12 @@ public class MilvusVectorStoreConfig {
     @Value("${spring.ai.vectorstore.milvus.client.port:19530}")
     private int port;
 
+    @Value("${spring.ai.vectorstore.milvus.client.username:}")
+    private String username;
+
+    @Value("${spring.ai.vectorstore.milvus.client.password:}")
+    private String password;
+
     @Value("${spring.ai.vectorstore.milvus.database-name:default}")
     private String databaseName;
 
@@ -37,11 +43,13 @@ public class MilvusVectorStoreConfig {
     @Bean
     @ConditionalOnMissingBean(MilvusServiceClient.class)
     public MilvusServiceClient milvusServiceClient() {
-        ConnectParam connectParam = ConnectParam.newBuilder()
+        ConnectParam.Builder builder = ConnectParam.newBuilder()
                 .withHost(host)
-                .withPort(port)
-                .build();
-        return new MilvusServiceClient(connectParam);
+                .withPort(port);
+        if (username != null && !username.isBlank()) {
+            builder.withAuthorization(username, password != null ? password : "");
+        }
+        return new MilvusServiceClient(builder.build());
     }
 
     @Bean

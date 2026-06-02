@@ -24,6 +24,8 @@ spring:
           model: ${MODEL:qwen3-max}
           temperature: ${TEMPERATURE:0.7}
       embedding:
+        # Default v2 has dim 1536 which matches MILVUS_DIMENSION below.
+        # If you switch to text-embedding-v3, set MILVUS_DIMENSION=1024 accordingly.
         options:
           model: ${EMBEDDING_MODEL:text-embedding-v2}
 
@@ -46,6 +48,9 @@ server:
 agent:
   max-steps: 10
   timeout-seconds: 120
+  file-read:
+    base-dir: ${user.dir}
+    max-size: 1048576  # 1 MB
 
 logging:
   level:

@@ -7,9 +7,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.tool.DefaultToolCallingManager;
+import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.*;
 
 /**
@@ -24,6 +33,7 @@ public class AgentService {
     private final ChatClient knowledgeChatClient;
     private final ChatClient directChatClient;
     private final RetrievalService retrievalService;
+    private final ToolCallingManager toolCallingManager;
     private final int maxSteps;
     private final long timeoutSeconds;
 
@@ -38,6 +48,7 @@ public class AgentService {
                 AgentProperties properties
         ) {
             this.retrievalService = retrievalService;
+            this.toolCallingManager = DefaultToolCallingManager.builder().build();
             this.knowledgeChatClient = chatClientBuilderProvider.getObject()
                     .defaultSystem("""
                     You are a helpful AI agent, developed by JoeyLiu.
@@ -78,85 +89,65 @@ public class AgentService {
 
     public String execute(String userMessage, boolean useKnowledgeBase) {
         log.info("AgentService.execute called with: {}, useKnowledgeBase={}", userMessage, useKnowledgeBase);
+        ExecutorService exec = Executors.newSingleThreadExecutor();
         try {
-            ExecutorService exec = Executors.newSingleThreadExecutor();
             Future<String> future = exec.submit(() -> loop(userMessage, useKnowledgeBase));
-            String result = future.get(timeoutSeconds, TimeUnit.SECONDS);
-            exec.shutdownNow();
-            return result;
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             log.warn("Agent loop timeout after {}s", timeoutSeconds);
             return "[timeout] exceeded " + timeoutSeconds + "s";
         } catch (Exception e) {
             log.error("Agent loop error: {}", e.getMessage(), e);
             return "[error] " + e.getMessage();
+        } finally {
+            exec.shutdownNow();
         }
     }
 
+    /**
+     * Real agent loop: build the initial user message, then iterate.
+     * Each iteration sends the full conversation history to the model.
+     * If the model requests tool calls, execute them and append the results
+     * to the history; otherwise return the final assistant content.
+     */
     private String loop(String userMessage, boolean useKnowledgeBase) {
-        // For knowledge-based questions, automatically query knowledge base first
-        String ragResult = null;
-        boolean isKnowledgeQuestion = useKnowledgeBase && isKnowledgeQuestion(userMessage);
         ChatClient activeChatClient = useKnowledgeBase ? knowledgeChatClient : directChatClient;
 
-        if (isKnowledgeQuestion) {
-            log.info("Detected knowledge question, querying RAG first...");
-            try {
-                ragResult = retrievalService.ragAnswer(userMessage, 5);
-                log.info("RAG result: {}", ragResult);
-            } catch (Exception e) {
-                log.error("RAG query failed: {}", e.getMessage());
-            }
-        }
+        List<Message> messages = new ArrayList<>();
+        messages.add(new UserMessage(buildInitialUserContent(userMessage, useKnowledgeBase)));
 
         for (int step = 0; step < maxSteps; step++) {
             log.debug("Agent loop step {}", step);
             try {
-                String content;
-                if (ragResult != null && step == 0) {
-                    String ragLower = ragResult.toLowerCase();
-                    boolean ragHasContent = !ragLower.contains("没有相关信息") && !ragLower.contains("no relevant");
-                    
-                    if (ragHasContent) {
-                        // RAG found relevant content, use it
-                        content = activeChatClient.prompt()
-                                .user(String.format("""
-                                    You have access to a knowledge base. Here is the search result:
-                                    
-                                    ---
-                                    %s
-                                    ---
-                                    
-                                    IMPORTANT: Answer ONLY using the knowledge base result above.
-                                    If the result answers the question, respond with the answer and cite the source like [来源: xxx].
-                                    If the result does NOT answer the question, say "知识库中没有相关信息，我将用我的知识来回答"。
-                                    Do NOT make up information.
-                                    
-                                    User question: %s
-                                    """, ragResult, userMessage))
-                                .advisors(new SimpleLoggerAdvisor())
-                                .call()
-                                .content();
-                    } else {
-                        // RAG found nothing, fall back to normal LLM
-                        log.info("RAG found no relevant content, falling back to LLM...");
-                        content = null; // force next step to use LLM
-                    }
-                    ragResult = null;
-                } else {
-                    content = activeChatClient.prompt()
-                            .user(userMessage)
-                            .advisors(new SimpleLoggerAdvisor())
-                            .call()
-                            .content();
+                ChatResponse response = activeChatClient.prompt()
+                        .messages(messages)
+                        .advisors(new SimpleLoggerAdvisor())
+                        .call()
+                        .chatResponse();
+
+                if (response == null || response.getResult() == null) {
+                    log.warn("Step {}: empty response from model", step);
+                    return "[error] empty response from model";
                 }
 
-                if (content != null && !content.isBlank()) {
-                    log.info("Agent response: {}", content);
-                    return content;
+                AssistantMessage assistantMessage = response.getResult().getOutput();
+
+                if (!assistantMessage.hasToolCalls()) {
+                    String content = assistantMessage.getText();
+                    log.info("Agent response (step {}): {}", step, content);
+                    return content != null ? content : "";
+                }
+
+                log.info("Step {}: {} tool call(s) requested", step, assistantMessage.getToolCalls().size());
+                messages.add(assistantMessage);
+
+                Prompt promptWithAssistant = new Prompt(messages);
+                var result = toolCallingManager.executeToolCalls(promptWithAssistant, response);
+                if (result != null && result.conversationHistory() != null) {
+                    messages.addAll(result.conversationHistory());
                 }
             } catch (Exception e) {
-                log.error("Step {} error: {}", step, e.getMessage());
+                log.error("Step {} error: {}", step, e.getMessage(), e);
                 return "[error] " + e.getMessage();
             }
         }
@@ -164,20 +155,70 @@ public class AgentService {
     }
 
     /**
+     * Build the first user message, optionally prepending RAG context.
+     */
+    private String buildInitialUserContent(String userMessage, boolean useKnowledgeBase) {
+        if (!useKnowledgeBase || !isKnowledgeQuestion(userMessage)) {
+            return userMessage;
+        }
+
+        log.info("Detected knowledge question, querying RAG first...");
+        List<RetrievalService.RetrievedDocument> docs;
+        try {
+            docs = retrievalService.retrieve(userMessage, 5);
+        } catch (Exception e) {
+            log.error("RAG query failed: {}", e.getMessage());
+            return userMessage;
+        }
+        if (docs.isEmpty()) {
+            log.info("RAG found no relevant documents, falling back to LLM...");
+            return userMessage;
+        }
+
+        String ragResult = retrievalService.answerWithCitations(userMessage, docs);
+        log.info("RAG answer: {}", ragResult);
+
+        return String.format("""
+            You have access to a knowledge base. Here is the search result:
+
+            ---
+            %s
+            ---
+
+            IMPORTANT: Answer ONLY using the knowledge base result above.
+            If the result answers the question, respond with the answer and cite the source like [来源: xxx].
+            If the result does NOT answer the question, say "知识库中没有相关信息，我将用我的知识来回答".
+            Do NOT make up information.
+
+            User question: %s
+            """, ragResult, userMessage);
+    }
+
+    /**
      * Heuristic: detect if user is asking a knowledge-based question that should use RAG.
+     * Skips greetings, self-intent questions, and short chit-chat.
      */
     private boolean isKnowledgeQuestion(String message) {
-        String lower = message.toLowerCase();
-        // Questions about the agent itself should NOT use RAG
-        if (lower.contains("你是谁") || lower.contains("你是干什么") || lower.contains("你能做")
-                || lower.contains("介绍一下你") || lower.contains("关于你")) {
-            return false;
+        String lower = message.toLowerCase().trim();
+        if (lower.isEmpty()) return false;
+
+        // Self-intent / chit-chat → never RAG
+        String[] skipPatterns = {
+                "你是谁", "你是干什么", "你能做", "介绍一下你", "关于你",
+                "你好", "hello", "hi", "thanks", "thank you", "再见", "bye"
+        };
+        for (String p : skipPatterns) {
+            if (lower.startsWith(p) || lower.equals(p)) return false;
         }
-        return lower.contains("是什么") || lower.contains("什么是")
-                || lower.contains("是谁") || lower.contains("谁在") || lower.contains("查")
-                || lower.contains("介绍") || lower.contains("解释")
-                || lower.contains("原理") || lower.contains("概念")
-                || lower.contains("查一下") || lower.contains("查询")
-                || (message.length() < 50 && message.contains("?"));
+
+        // Explicit knowledge-seeking keywords
+        String[] knowledgeKeywords = {
+                "是什么", "什么是", "是谁", "谁在", "查", "介绍", "解释",
+                "原理", "概念", "查询", "如何", "怎么", "why", "what is", "how does", "explain"
+        };
+        for (String k : knowledgeKeywords) {
+            if (lower.contains(k)) return true;
+        }
+        return false;
     }
 }
