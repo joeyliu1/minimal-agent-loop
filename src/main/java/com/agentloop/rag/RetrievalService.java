@@ -6,6 +6,7 @@ import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -39,10 +40,21 @@ public class RetrievalService {
      * Retrieve relevant documents for a query.
      */
     public List<RetrievedDocument> retrieve(String query, int topK) {
-        SearchRequest request = SearchRequest.builder()
+        return retrieve(query, topK, null);
+    }
+
+    public List<RetrievedDocument> retrieve(String query, int topK, String knowledgeBaseId) {
+        SearchRequest.Builder builder = SearchRequest.builder()
                 .query(query)
-                .topK(topK)
-                .build();
+                .topK(topK);
+        if (knowledgeBaseId != null && !knowledgeBaseId.isBlank()) {
+            builder.filterExpression(new Filter.Expression(
+                    Filter.ExpressionType.EQ,
+                    new Filter.Key("knowledge_base_id"),
+                    new Filter.Value(knowledgeBaseId.trim())
+            ));
+        }
+        SearchRequest request = builder.build();
         List<Document> results = vectorStore.similaritySearch(request);
 
         return results.stream()
@@ -103,6 +115,11 @@ public class RetrievalService {
      */
     public String ragAnswer(String query, int topK) {
         List<RetrievedDocument> docs = retrieve(query, topK);
+        return answerWithCitations(query, docs);
+    }
+
+    public String ragAnswer(String query, int topK, String knowledgeBaseId) {
+        List<RetrievedDocument> docs = retrieve(query, topK, knowledgeBaseId);
         return answerWithCitations(query, docs);
     }
 

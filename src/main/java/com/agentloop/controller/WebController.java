@@ -40,12 +40,16 @@ public class WebController {
     public Map<String, String> chat(@RequestBody Map<String, Object> request) {
         String message = String.valueOf(request.getOrDefault("message", ""));
         boolean useKnowledgeBase = Boolean.parseBoolean(String.valueOf(request.getOrDefault("useKnowledgeBase", true)));
-        String response = agentService.execute(message, useKnowledgeBase);
+        String knowledgeBaseId = String.valueOf(request.getOrDefault("knowledgeBaseId", "default"));
+        String response = agentService.execute(message, useKnowledgeBase, knowledgeBaseId);
         return Map.of("response", response);
     }
 
     @PostMapping("/api/rag/upload")
-    public Map<String, Object> ragUpload(@RequestParam("files") List<MultipartFile> files) {
+    public Map<String, Object> ragUpload(
+            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId
+    ) {
         if (files == null || files.isEmpty()) {
             return Map.of("status", "error", "message", "请选择文件");
         }
@@ -56,7 +60,7 @@ public class WebController {
             try {
                 String content = documentParser.parse(file);
                 if (content != null && !content.isBlank()) {
-                    indexingService.addDocument(content, "文件上传: " + file.getOriginalFilename());
+                    indexingService.addDocument(content, "文件上传: " + file.getOriginalFilename(), knowledgeBaseId);
                     success++;
                     msg.append("✓ ").append(file.getOriginalFilename()).append("\n");
                 } else {
@@ -83,13 +87,14 @@ public class WebController {
             return Map.of("status", "error", "message", "content 不能为空");
         }
         String source = request.getOrDefault("source", "用户添加");
-        indexingService.addDocument(content, source);
+        String knowledgeBaseId = request.getOrDefault("knowledgeBaseId", "default");
+        indexingService.addDocument(content, source, knowledgeBaseId);
         return Map.of("status", "ok", "message", "已添加");
     }
 
     @DeleteMapping("/api/rag/clear")
-    public Map<String, String> ragClear() {
-        indexingService.clear();
+    public Map<String, String> ragClear(@RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId) {
+        indexingService.clear(knowledgeBaseId);
         return Map.of("status", "ok", "message", "知识库已清空");
     }
 
@@ -100,9 +105,23 @@ public class WebController {
     }
 
     @GetMapping("/api/rag/list")
-    public Map<String, Object> ragList() {
-        var docs = indexingService.listDocuments();
+    public Map<String, Object> ragList(@RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId) {
+        var docs = indexingService.listDocuments(knowledgeBaseId);
         return Map.of("status", "ok", "count", docs.size(), "documents", docs);
+    }
+
+    @GetMapping("/api/rag/kbs")
+    public Map<String, Object> ragKnowledgeBases() {
+        var knowledgeBases = indexingService.listKnowledgeBases();
+        return Map.of("status", "ok", "count", knowledgeBases.size(), "knowledgeBases", knowledgeBases);
+    }
+
+    @PostMapping("/api/rag/kbs")
+    public Map<String, Object> ragCreateKnowledgeBase(@RequestBody Map<String, String> request) {
+        String name = request == null ? "" : request.getOrDefault("name", "");
+        String description = request == null ? "" : request.getOrDefault("description", "");
+        var knowledgeBase = indexingService.createKnowledgeBase(name, description);
+        return Map.of("status", "ok", "knowledgeBase", knowledgeBase);
     }
 
     @GetMapping("/api/health")

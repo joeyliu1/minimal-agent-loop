@@ -134,6 +134,38 @@
             height: 15px;
             accent-color: #00d4ff;
         }
+        .chat-options select,
+        .kb-select,
+        .kb-create input {
+            padding: 8px 10px;
+            background: #1e1e3f;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 13px;
+            outline: none;
+        }
+        .chat-options select:focus,
+        .kb-select:focus,
+        .kb-create input:focus { border-color: #00d4ff; }
+        .kb-toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .kb-toolbar label {
+            color: #888;
+            font-size: 13px;
+        }
+        .kb-select { min-width: 180px; }
+        .kb-create {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .kb-create input { min-width: 180px; }
         .input-area { display: flex; gap: 12px; }
         #messageInput {
             flex: 1; padding: 15px 20px; background: #1e1e3f; border: 1px solid #2a2a4a;
@@ -350,6 +382,7 @@
                         <input type="checkbox" id="useKnowledgeBase" checked>
                         使用知识库
                     </label>
+                    <select id="chatKnowledgeBaseSelect" onchange="selectKnowledgeBase(this.value)"></select>
                 </div>
                 <div class="input-area">
                     <input type="text" id="messageInput" placeholder="输入问题，按 Enter 发送..." onkeypress="handleKeyPress(event)">
@@ -362,6 +395,19 @@
                 <div class="knowledge-header">
                     <span style="font-size:16px;font-weight:600;color:#00d4ff;">📚 知识库管理</span>
                     <button class="back-btn" onclick="showChatView()">← 返回聊天</button>
+                </div>
+
+                <!-- Knowledge base selector -->
+                <div class="k-section">
+                    <div class="k-section-title">🗂️ 当前知识库</div>
+                    <div class="kb-toolbar">
+                        <label for="manageKnowledgeBaseSelect">选择</label>
+                        <select class="kb-select" id="manageKnowledgeBaseSelect" onchange="selectKnowledgeBase(this.value)"></select>
+                        <div class="kb-create">
+                            <input type="text" id="newKnowledgeBaseName" placeholder="新知识库名称">
+                            <button class="btn btn-primary" onclick="createKnowledgeBase()">新建</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Upload -->
@@ -415,6 +461,8 @@
         var isLoading = false;
         var pendingFiles = [];
         var documents = [];
+        var knowledgeBases = [];
+        var selectedKnowledgeBaseId = 'default';
         var activeChatKey = 'default';
         var chatSessions = {
             default: [
@@ -435,6 +483,7 @@
         function showKnowledgeView() {
             document.getElementById('chatView').style.display = 'none';
             document.getElementById('knowledgeView').style.display = 'flex';
+            loadKnowledgeBases();
             loadDocuments();
         }
 
@@ -497,7 +546,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: message,
-                    useKnowledgeBase: document.getElementById('useKnowledgeBase').checked
+                    useKnowledgeBase: document.getElementById('useKnowledgeBase').checked,
+                    knowledgeBaseId: selectedKnowledgeBaseId
                 })
             })
             .then(function(res) { return res.json(); })
@@ -610,6 +660,64 @@
             return d.innerHTML;
         }
 
+        function loadKnowledgeBases() {
+            return fetch('/api/rag/kbs')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    knowledgeBases = data.knowledgeBases || [];
+                    if (knowledgeBases.length === 0) {
+                        knowledgeBases = [{ id: 'default', name: '默认知识库', description: '' }];
+                    }
+                    var exists = false;
+                    for (var i = 0; i < knowledgeBases.length; i++) {
+                        if (knowledgeBases[i].id === selectedKnowledgeBaseId) { exists = true; break; }
+                    }
+                    if (!exists) selectedKnowledgeBaseId = knowledgeBases[0].id;
+                    renderKnowledgeBaseSelects();
+                })
+                .catch(function(err) { showToast('加载知识库失败: ' + err.message, true); });
+        }
+
+        function renderKnowledgeBaseSelects() {
+            var html = '';
+            for (var i = 0; i < knowledgeBases.length; i++) {
+                var kb = knowledgeBases[i];
+                var selected = kb.id === selectedKnowledgeBaseId ? ' selected' : '';
+                html += '<option value="' + escapeHtml(kb.id) + '"' + selected + '>' + escapeHtml(kb.name) + '</option>';
+            }
+            var chatSelect = document.getElementById('chatKnowledgeBaseSelect');
+            var manageSelect = document.getElementById('manageKnowledgeBaseSelect');
+            if (chatSelect) chatSelect.innerHTML = html;
+            if (manageSelect) manageSelect.innerHTML = html;
+        }
+
+        function selectKnowledgeBase(id) {
+            selectedKnowledgeBaseId = id || 'default';
+            renderKnowledgeBaseSelects();
+            loadDocuments();
+        }
+
+        function createKnowledgeBase() {
+            var input = document.getElementById('newKnowledgeBaseName');
+            var name = input.value.trim();
+            if (!name) { showToast('请输入知识库名称', true); return; }
+            fetch('/api/rag/kbs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                var kb = data.knowledgeBase;
+                selectedKnowledgeBaseId = kb.id;
+                input.value = '';
+                showToast('知识库已创建');
+                return loadKnowledgeBases();
+            })
+            .then(function() { loadDocuments(); })
+            .catch(function(err) { showToast('创建失败: ' + err.message, true); });
+        }
+
         async function uploadFiles() {
             if (pendingFiles.length === 0) return;
             var uploadBtn = document.getElementById('uploadBtn');
@@ -617,6 +725,7 @@
             uploadBtn.textContent = '上传中...';
             var formData = new FormData();
             for (var i = 0; i < pendingFiles.length; i++) formData.append('files', pendingFiles[i]);
+            formData.append('knowledgeBaseId', selectedKnowledgeBaseId);
             try {
                 var res = await fetch('/api/rag/upload', { method: 'POST', body: formData });
                 var data = await res.json();
@@ -644,7 +753,7 @@
 
         // ── Document management ──
         function loadDocuments() {
-            fetch('/api/rag/list')
+            fetch('/api/rag/list?knowledgeBaseId=' + encodeURIComponent(selectedKnowledgeBaseId))
                 .then(function(res) { return res.json(); })
                 .then(function(data) {
                     documents = data.documents || [];
@@ -682,7 +791,7 @@
             fetch('/api/rag/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: content, source: source })
+                body: JSON.stringify({ content: content, source: source, knowledgeBaseId: selectedKnowledgeBaseId })
             })
             .then(function(res) { return res.json(); })
             .then(function() {
@@ -703,7 +812,7 @@
 
         function clearAllDocs() {
             if (!confirm('确定清空全部文档？此操作不可恢复。')) return;
-            fetch('/api/rag/clear', { method: 'DELETE' })
+            fetch('/api/rag/clear?knowledgeBaseId=' + encodeURIComponent(selectedKnowledgeBaseId), { method: 'DELETE' })
                 .then(function(res) { return res.json(); })
                 .then(function() { showToast('已清空全部文档'); loadDocuments(); })
                 .catch(function(err) { showToast('清空失败: ' + err.message, true); });
@@ -718,6 +827,7 @@
             setTimeout(function() { toast.classList.remove('show'); }, 4000);
         }
 
+        loadKnowledgeBases().then(function() { loadDocuments(); });
         document.getElementById('messageInput').focus();
     </script>
 </body>

@@ -22,6 +22,10 @@ public class IndexingService {
         registry.addDocument(content, source);
     }
 
+    public void addDocument(String content, String source, String knowledgeBaseId) {
+        registry.addDocument(content, source, knowledgeBaseId);
+    }
+
     public void deleteDocument(String id) {
         registry.deleteDocument(id);
     }
@@ -30,7 +34,23 @@ public class IndexingService {
         registry.clear();
     }
 
+    public void clear(String knowledgeBaseId) {
+        registry.clear(knowledgeBaseId);
+    }
+
     public List<Map<String, String>> listDocuments() {
         return registry.listDocuments();
+    }
+
+    public List<Map<String, String>> listDocuments(String knowledgeBaseId) {
+        return registry.listDocuments(knowledgeBaseId);
+    }
+
+    public List<Map<String, String>> listKnowledgeBases() {
+        return registry.listKnowledgeBases();
+    }
+
+    public Map<String, String> createKnowledgeBase(String name, String description) {
+        return registry.createKnowledgeBase(name, description);
     }
 }

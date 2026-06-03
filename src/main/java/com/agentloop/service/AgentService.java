@@ -33,6 +33,7 @@ public class AgentService {
     private final ChatClient knowledgeChatClient;
     private final ChatClient directChatClient;
     private final RetrievalService retrievalService;
+    private final RagTool ragTool;
     private final ToolCallingManager toolCallingManager;
     private final int maxSteps;
     private final long timeoutSeconds;
@@ -48,6 +49,7 @@ public class AgentService {
                 AgentProperties properties
         ) {
             this.retrievalService = retrievalService;
+            this.ragTool = ragTool;
             this.toolCallingManager = DefaultToolCallingManager.builder().build();
             this.knowledgeChatClient = chatClientBuilderProvider.getObject()
                     .defaultSystem("""
@@ -88,10 +90,15 @@ public class AgentService {
     }
 
     public String execute(String userMessage, boolean useKnowledgeBase) {
-        log.info("AgentService.execute called with: {}, useKnowledgeBase={}", userMessage, useKnowledgeBase);
+        return execute(userMessage, useKnowledgeBase, null);
+    }
+
+    public String execute(String userMessage, boolean useKnowledgeBase, String knowledgeBaseId) {
+        log.info("AgentService.execute called with: {}, useKnowledgeBase={}, knowledgeBaseId={}",
+                userMessage, useKnowledgeBase, knowledgeBaseId);
         ExecutorService exec = Executors.newSingleThreadExecutor();
         try {
-            Future<String> future = exec.submit(() -> loop(userMessage, useKnowledgeBase));
+            Future<String> future = exec.submit(() -> loop(userMessage, useKnowledgeBase, knowledgeBaseId));
             return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             log.warn("Agent loop timeout after {}s", timeoutSeconds);
@@ -110,54 +117,63 @@ public class AgentService {
      * If the model requests tool calls, execute them and append the results
      * to the history; otherwise return the final assistant content.
      */
-    private String loop(String userMessage, boolean useKnowledgeBase) {
+    private String loop(String userMessage, boolean useKnowledgeBase, String knowledgeBaseId) {
         ChatClient activeChatClient = useKnowledgeBase ? knowledgeChatClient : directChatClient;
+        if (useKnowledgeBase) {
+            ragTool.setActiveKnowledgeBaseId(knowledgeBaseId);
+        } else {
+            ragTool.clearActiveKnowledgeBaseId();
+        }
 
         List<Message> messages = new ArrayList<>();
-        messages.add(new UserMessage(buildInitialUserContent(userMessage, useKnowledgeBase)));
+        messages.add(new UserMessage(buildInitialUserContent(userMessage, useKnowledgeBase, knowledgeBaseId)));
 
-        for (int step = 0; step < maxSteps; step++) {
-            log.debug("Agent loop step {}", step);
-            try {
-                ChatResponse response = activeChatClient.prompt()
-                        .messages(messages)
-                        .advisors(new SimpleLoggerAdvisor())
-                        .call()
-                        .chatResponse();
+        try {
+            for (int step = 0; step < maxSteps; step++) {
+                log.debug("Agent loop step {}", step);
+                try {
+                    ChatResponse response = activeChatClient.prompt()
+                            .messages(messages)
+                            .advisors(new SimpleLoggerAdvisor())
+                            .call()
+                            .chatResponse();
 
-                if (response == null || response.getResult() == null) {
-                    log.warn("Step {}: empty response from model", step);
-                    return "[error] empty response from model";
+                    if (response == null || response.getResult() == null) {
+                        log.warn("Step {}: empty response from model", step);
+                        return "[error] empty response from model";
+                    }
+
+                    AssistantMessage assistantMessage = response.getResult().getOutput();
+
+                    if (!assistantMessage.hasToolCalls()) {
+                        String content = assistantMessage.getText();
+                        log.info("Agent response (step {}): {}", step, content);
+                        return content != null ? content : "";
+                    }
+
+                    log.info("Step {}: {} tool call(s) requested", step, assistantMessage.getToolCalls().size());
+                    messages.add(assistantMessage);
+
+                    Prompt promptWithAssistant = new Prompt(messages);
+                    var result = toolCallingManager.executeToolCalls(promptWithAssistant, response);
+                    if (result != null && result.conversationHistory() != null) {
+                        messages.addAll(result.conversationHistory());
+                    }
+                } catch (Exception e) {
+                    log.error("Step {} error: {}", step, e.getMessage(), e);
+                    return "[error] " + e.getMessage();
                 }
-
-                AssistantMessage assistantMessage = response.getResult().getOutput();
-
-                if (!assistantMessage.hasToolCalls()) {
-                    String content = assistantMessage.getText();
-                    log.info("Agent response (step {}): {}", step, content);
-                    return content != null ? content : "";
-                }
-
-                log.info("Step {}: {} tool call(s) requested", step, assistantMessage.getToolCalls().size());
-                messages.add(assistantMessage);
-
-                Prompt promptWithAssistant = new Prompt(messages);
-                var result = toolCallingManager.executeToolCalls(promptWithAssistant, response);
-                if (result != null && result.conversationHistory() != null) {
-                    messages.addAll(result.conversationHistory());
-                }
-            } catch (Exception e) {
-                log.error("Step {} error: {}", step, e.getMessage(), e);
-                return "[error] " + e.getMessage();
             }
+            return "[max_steps] reached limit (" + maxSteps + ")";
+        } finally {
+            ragTool.clearActiveKnowledgeBaseId();
         }
-        return "[max_steps] reached limit (" + maxSteps + ")";
     }
 
     /**
      * Build the first user message, optionally prepending RAG context.
      */
-    private String buildInitialUserContent(String userMessage, boolean useKnowledgeBase) {
+    private String buildInitialUserContent(String userMessage, boolean useKnowledgeBase, String knowledgeBaseId) {
         if (!useKnowledgeBase || !isKnowledgeQuestion(userMessage)) {
             return userMessage;
         }
@@ -165,7 +181,7 @@ public class AgentService {
         log.info("Detected knowledge question, querying RAG first...");
         List<RetrievalService.RetrievedDocument> docs;
         try {
-            docs = retrievalService.retrieve(userMessage, 5);
+            docs = retrievalService.retrieve(userMessage, 5, knowledgeBaseId);
         } catch (Exception e) {
             log.error("RAG query failed: {}", e.getMessage());
             return userMessage;
