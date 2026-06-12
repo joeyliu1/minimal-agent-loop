@@ -16,6 +16,7 @@ public class RagTool {
 
     private final RetrievalService retrievalService;
     private final IndexingService indexingService;
+    private final ThreadLocal<String> activeKnowledgeBaseId = new ThreadLocal<>();
 
     public RagTool(RetrievalService retrievalService, IndexingService indexingService) {
         this.retrievalService = retrievalService;
@@ -24,7 +25,7 @@ public class RagTool {
 
     @Tool(name = "rag_query", description = "Query the knowledge base for relevant information. Use this when the user asks about topics that might be in the knowledge base.")
     public String queryKnowledgeBase(@ToolParam(description = "The search query to find relevant information") String query) {
-        return retrievalService.ragAnswer(query, 3);
+        return retrievalService.ragAnswer(query, 3, activeKnowledgeBaseId.get());
     }
 
     @Tool(name = "rag_add_document", description = "Add a document to the knowledge base for future retrieval.")
@@ -32,7 +33,7 @@ public class RagTool {
             @ToolParam(description = "The document content to add") String content,
             @ToolParam(description = "The source or title of the document") String source
     ) {
-        indexingService.addDocument(content, source);
+        indexingService.addDocument(content, source, activeKnowledgeBaseId.get());
         return "Document added successfully: " + source;
     }
 
@@ -45,8 +46,16 @@ public class RagTool {
             return "[error] contents and sources must be non-null lists of equal size";
         }
         for (int i = 0; i < contents.size(); i++) {
-            indexingService.addDocument(contents.get(i), sources.get(i));
+            indexingService.addDocument(contents.get(i), sources.get(i), activeKnowledgeBaseId.get());
         }
         return "Added " + contents.size() + " documents successfully";
+    }
+
+    public void setActiveKnowledgeBaseId(String knowledgeBaseId) {
+        activeKnowledgeBaseId.set(knowledgeBaseId);
+    }
+
+    public void clearActiveKnowledgeBaseId() {
+        activeKnowledgeBaseId.remove();
     }
 }

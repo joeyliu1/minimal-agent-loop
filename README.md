@@ -45,7 +45,7 @@ minimal-agent-loop/
     │   │   └── ChatMemoryService.java   # 会话记忆服务
     │   ├── rag/
     │   │   ├── DocumentChunker.java     # 文档分块
-    │   │   ├── EmbeddingService.java    # 向量嵌入（text-embedding-v3）
+    │   │   ├── EmbeddingService.java    # 向量嵌入（text-embedding-v2）
     │   │   ├── IndexingService.java     # 文档索引
     │   │   ├── RetrievalService.java    # 检索 + 带引用的回答
     │   │   └── VectorStoreConfig.java  # 向量存储配置（SimpleVectorStore / Milvus）
@@ -163,7 +163,7 @@ public class MathTool {
 | `spring.ai.dashscope.api-key` | `AI_DASHSCOPE_API_KEY` | 通义千问 API Key（必填） |
 | `spring.ai.dashscope.chat.options.model` | `MODEL` | 模型名称，默认 qwen3-max |
 | `spring.ai.dashscope.chat.options.temperature` | `TEMPERATURE` | 生成温度参数，默认 0.7 |
-| `spring.ai.dashscope.embedding.options.model` | `EMBEDDING_MODEL` | 嵌入模型，默认 text-embedding-v3 |
+| `spring.ai.dashscope.embedding.options.model` | `EMBEDDING_MODEL` | 嵌入模型，默认 text-embedding-v2（dim 1536，配套 `MILVUS_DIMENSION`） |
 | `agent.max-steps` | — | Agent 最大执行步数，默认 10 |
 | `agent.timeout-seconds` | — | 单次执行超时时间（秒），默认 120 |
 

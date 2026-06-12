@@ -33,7 +33,7 @@ public class AgentApplication {
                     runInteractive(agentService);
                 } else {
                     String message = String.join(" ", args);
-                    System.out.println(agentService.execute("cli", message));
+                    System.out.println(agentService.execute(message));
                 }
             }
         };
@@ -41,12 +41,21 @@ public class AgentApplication {
 
     private void runInteractive(AgentService agentService) {
         System.out.println("Agent Loop — interactive mode. Type 'exit' to quit.\n");
-        Scanner scanner = new Scanner(System.in);
-        while (true) {
-            System.out.print("You: ");
-            String input = scanner.nextLine().trim();
-            if (input.isEmpty() || "exit".equalsIgnoreCase(input)) break;
-            System.out.println("Agent: " + agentService.execute("cli", input) + "\n");
+        try (Scanner scanner = new Scanner(System.in)) {
+            while (true) {
+                System.out.print("You: ");
+                String input;
+                try {
+                    input = scanner.nextLine();
+                } catch (java.util.NoSuchElementException eof) {
+                    // Ctrl+D / stdin closed
+                    System.out.println("\n[input closed, exiting]");
+                    return;
+                }
+                input = input.trim();
+                if (input.isEmpty() || "exit".equalsIgnoreCase(input)) break;
+                System.out.println("Agent: " + agentService.execute(input) + "\n");
+            }
         }
     }
 }

@@ -1,8 +1,5 @@
 package com.agentloop.controller;
 
-import com.agentloop.memory.ChatMemoryService;
-import com.agentloop.memory.ChatSessionService;
-import com.agentloop.memory.ChatSessionService.Session;
 import com.agentloop.rag.DocumentParser;
 import com.agentloop.rag.IndexingService;
 import com.agentloop.service.AgentService;
@@ -15,7 +12,6 @@ import java.util.Map;
 
 /**
  * Web UI controller for agent interaction.
- * Supports multi-session chat with MySQL-backed memory.
  */
 @RestController
 public class WebController {
@@ -23,21 +19,11 @@ public class WebController {
     private final AgentService agentService;
     private final IndexingService indexingService;
     private final DocumentParser documentParser;
-    private final ChatSessionService sessionService;
-    private final ChatMemoryService memoryService;
 
-    public WebController(
-            AgentService agentService,
-            IndexingService indexingService,
-            DocumentParser documentParser,
-            ChatSessionService sessionService,
-            ChatMemoryService memoryService
-    ) {
+    public WebController(AgentService agentService, IndexingService indexingService, DocumentParser documentParser) {
         this.agentService = agentService;
         this.indexingService = indexingService;
         this.documentParser = documentParser;
-        this.sessionService = sessionService;
-        this.memoryService = memoryService;
     }
 
     @GetMapping("/")
@@ -50,102 +36,20 @@ public class WebController {
         response.sendRedirect("/knowledge.html");
     }
 
-    // ── Session management ──────────────────────────────────────────
-
-    @PostMapping("/api/session")
-    public Map<String, Object> createSession(@RequestBody Map<String, String> body) {
-        String title = body.getOrDefault("title", "新对话");
-        Session session = sessionService.createSession(title);
-        return Map.of("status", "ok", "sessionId", session.sessionId(), "title", session.title());
-    }
-
-    @GetMapping("/api/sessions")
-    public Map<String, Object> listSessions() {
-        List<Session> sessions = sessionService.listSessions();
-        return Map.of(
-            "status", "ok",
-            "count", sessions.size(),
-            "sessions", sessions.stream()
-                .map(s -> Map.of(
-                    "sessionId", s.sessionId(),
-                    "title", s.title(),
-                    "createdAt", s.createdAt(),
-                    "updatedAt", s.updatedAt()
-                )).toList()
-        );
-    }
-
-    @PutMapping("/api/session/{sessionId}")
-    public Map<String, String> renameSession(
-            @PathVariable String sessionId,
-            @RequestBody Map<String, String> body
-    ) {
-        String title = body.getOrDefault("title", "新对话");
-        sessionService.renameSession(sessionId, title);
-        return Map.of("status", "ok");
-    }
-
-    @DeleteMapping("/api/session/{sessionId}")
-    public Map<String, String> deleteSession(@PathVariable String sessionId) {
-        sessionService.deleteSession(sessionId);
-        return Map.of("status", "ok");
-    }
-
-    // ── Chat with session ───────────────────────────────────────────
-
-    /**
-     * POST /api/chat
-     * Body: { "message": "...", "sessionId": "optional" }
-     * If sessionId is absent or empty, a NEW session is created automatically.
-     * Each aside-button click → no sessionId → creates a fresh session.
-     */
     @PostMapping("/api/chat")
-    public Map<String, Object> chat(@RequestBody Map<String, String> request) {
-        String message = request.get("message");
-        String sessionId = request.get("sessionId");
-
-        // No sessionId → brand new session (aside button clicks land here)
-        if (sessionId == null || sessionId.isBlank()) {
-            Session session = sessionService.createSession(sessionService.generateTitle(message));
-            sessionId = session.sessionId();
-            memoryService.addMessage(sessionId, "user", message);
-            String response = agentService.execute(sessionId, message);
-            memoryService.addMessage(sessionId, "assistant", response);
-            sessionService.touchSession(sessionId);
-            return Map.of(
-                "status", "ok",
-                "sessionId", sessionId,
-                "response", response
-            );
-        }
-
-        // Existing session
-        memoryService.addMessage(sessionId, "user", message);
-        String response = agentService.execute(sessionId, message);
-        memoryService.addMessage(sessionId, "assistant", response);
-        sessionService.touchSession(sessionId);
-        return Map.of("status", "ok", "sessionId", sessionId, "response", response);
+    public Map<String, String> chat(@RequestBody Map<String, Object> request) {
+        String message = String.valueOf(request.getOrDefault("message", ""));
+        boolean useKnowledgeBase = Boolean.parseBoolean(String.valueOf(request.getOrDefault("useKnowledgeBase", true)));
+        String knowledgeBaseId = String.valueOf(request.getOrDefault("knowledgeBaseId", "default"));
+        String response = agentService.execute(message, useKnowledgeBase, knowledgeBaseId);
+        return Map.of("response", response);
     }
-
-    /**
-     * GET /api/session/{sessionId}/messages
-     * Returns messages for a given session (newest last, for ChatClient ordering).
-     */
-    @GetMapping("/api/session/{sessionId}/messages")
-    public Map<String, Object> getMessages(@PathVariable String sessionId) {
-        var msgs = memoryService.getRecentMessages(sessionId);
-        return Map.of(
-            "status", "ok",
-            "messages", msgs.stream()
-                .map(m -> Map.of("role", m.role(), "content", m.content()))
-                .toList()
-        );
-    }
-
-    // ── RAG ────────────────────────────────────────────────────────
 
     @PostMapping("/api/rag/upload")
-    public Map<String, Object> ragUpload(@RequestParam("files") List<MultipartFile> files) {
+    public Map<String, Object> ragUpload(
+            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId
+    ) {
         if (files == null || files.isEmpty()) {
             return Map.of("status", "error", "message", "请选择文件");
         }
@@ -156,7 +60,7 @@ public class WebController {
             try {
                 String content = documentParser.parse(file);
                 if (content != null && !content.isBlank()) {
-                    indexingService.addDocument(content, "文件上传: " + file.getOriginalFilename());
+                    indexingService.addDocument(content, "文件上传: " + file.getOriginalFilename(), knowledgeBaseId);
                     success++;
                     msg.append("✓ ").append(file.getOriginalFilename()).append("\n");
                 } else {
@@ -178,15 +82,19 @@ public class WebController {
 
     @PostMapping("/api/rag/add")
     public Map<String, String> ragAdd(@RequestBody Map<String, String> request) {
-        String content = request.get("content");
+        String content = request == null ? null : request.get("content");
+        if (content == null || content.isBlank()) {
+            return Map.of("status", "error", "message", "content 不能为空");
+        }
         String source = request.getOrDefault("source", "用户添加");
-        indexingService.addDocument(content, source);
-        return Map.of("status", "ok", "message", "已添加: " + content);
+        String knowledgeBaseId = request.getOrDefault("knowledgeBaseId", "default");
+        indexingService.addDocument(content, source, knowledgeBaseId);
+        return Map.of("status", "ok", "message", "已添加");
     }
 
     @DeleteMapping("/api/rag/clear")
-    public Map<String, String> ragClear() {
-        indexingService.clear();
+    public Map<String, String> ragClear(@RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId) {
+        indexingService.clear(knowledgeBaseId);
         return Map.of("status", "ok", "message", "知识库已清空");
     }
 
@@ -197,9 +105,23 @@ public class WebController {
     }
 
     @GetMapping("/api/rag/list")
-    public Map<String, Object> ragList() {
-        var docs = indexingService.listDocuments();
+    public Map<String, Object> ragList(@RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId) {
+        var docs = indexingService.listDocuments(knowledgeBaseId);
         return Map.of("status", "ok", "count", docs.size(), "documents", docs);
+    }
+
+    @GetMapping("/api/rag/kbs")
+    public Map<String, Object> ragKnowledgeBases() {
+        var knowledgeBases = indexingService.listKnowledgeBases();
+        return Map.of("status", "ok", "count", knowledgeBases.size(), "knowledgeBases", knowledgeBases);
+    }
+
+    @PostMapping("/api/rag/kbs")
+    public Map<String, Object> ragCreateKnowledgeBase(@RequestBody Map<String, String> request) {
+        String name = request == null ? "" : request.getOrDefault("name", "");
+        String description = request == null ? "" : request.getOrDefault("description", "");
+        var knowledgeBase = indexingService.createKnowledgeBase(name, description);
+        return Map.of("status", "ok", "knowledgeBase", knowledgeBase);
     }
 
     @GetMapping("/api/health")
