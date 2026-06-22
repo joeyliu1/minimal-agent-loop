@@ -464,6 +464,8 @@
         var knowledgeBases = [];
         var selectedKnowledgeBaseId = 'default';
         var activeChatKey = 'default';
+        // sessionId 用于跨请求保持 conversation history
+        var currentSessionId = null;
         var chatSessions = {
             default: [
                 {
@@ -508,8 +510,14 @@
             ensureChatSession(activeChatKey);
             renderChatSession();
             updateActiveToolButton();
+            
+            // 为每个聊天会话分配唯一的 sessionId
+            if (!chatSessions[activeChatKey].sessionId) {
+                chatSessions[activeChatKey].sessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            }
+            currentSessionId = chatSessions[activeChatKey].sessionId;
         }
-
+        
         function updateActiveToolButton() {
             var buttons = document.querySelectorAll('.tool-btn[data-chat-key]');
             for (var i = 0; i < buttons.length; i++) {
@@ -538,6 +546,10 @@
             var input = document.getElementById('messageInput');
             var message = msg || input.value.trim();
             if (!message || isLoading) return;
+            
+            // 确保有 sessionId（用于 conversation loop）
+            switchChatSession(activeChatKey);
+            
             addMessage(message, 'user');
             input.value = '';
             setLoading(true);
@@ -547,13 +559,20 @@
                 body: JSON.stringify({
                     message: message,
                     useKnowledgeBase: document.getElementById('useKnowledgeBase').checked,
-                    knowledgeBaseId: selectedKnowledgeBaseId
+                    knowledgeBaseId: selectedKnowledgeBaseId,
+                    sessionId: currentSessionId
                 })
             })
             .then(function(res) { return res.json(); })
-            .then(function(data) { addMessage(data.response || '无响应', 'agent'); })
-            .catch(function(err) { addMessage('错误: ' + err.message, 'agent'); })
-            .finally(function() { setLoading(false); });
+            .then(function(data) { 
+                addMessage(data.response || '无响应', 'agent'); 
+            })
+            .catch(function(err) { 
+                addMessage('错误：' + err.message, 'agent'); 
+            })
+            .finally(function() { 
+                setLoading(false); 
+            });
         }
 
         function sendMessageFromAside(chatKey, msg) {
@@ -598,12 +617,9 @@
         }
 
         function clearChat() {
-            chatSessions[activeChatKey] = [
-                { type: 'agent', content: '对话已清空，开始新对话吧！', html: false }
-            ];
             renderChatSession();
         }
-
+        
         // ── Drag & drop ──
         var dropZone = document.getElementById('dropZone');
         var fileInput = document.getElementById('fileInput');
@@ -689,8 +705,11 @@
             var manageSelect = document.getElementById('manageKnowledgeBaseSelect');
             if (chatSelect) chatSelect.innerHTML = html;
             if (manageSelect) manageSelect.innerHTML = html;
+            
+            // Save selected KB to localStorage for persistence
+            localStorage.setItem('selectedKnowledgeBaseId', selectedKnowledgeBaseId || 'default');
         }
-
+        
         function selectKnowledgeBase(id) {
             selectedKnowledgeBaseId = id || 'default';
             renderKnowledgeBaseSelects();
@@ -826,9 +845,15 @@
             toast.classList.add('show');
             setTimeout(function() { toast.classList.remove('show'); }, 4000);
         }
-
-        loadKnowledgeBases().then(function() { loadDocuments(); });
-        document.getElementById('messageInput').focus();
+        
+        // 页面加载时初始化会话
+        window.onload = function() {
+            switchChatSession('default');
+            loadKnowledgeBases().then(function() { 
+                loadDocuments();
+            });
+            document.getElementById('messageInput').focus();
+        };
     </script>
 </body>
 </html>
