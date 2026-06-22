@@ -21,7 +21,7 @@ spring:
       chat:
         options:
           model: ${MODEL:qwen3-max}
-          temperature: ${TEMPERATURE:0.7}
+          temperature: ${TEMPERATURE:0.1}
       embedding:
         # Default v2 has dim 1536 which matches MILVUS_DIMENSION below.
         # If you switch to text-embedding-v3, set MILVUS_DIMENSION=1024 accordingly.
