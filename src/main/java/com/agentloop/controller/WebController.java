@@ -41,7 +41,8 @@ public class WebController {
         String message = String.valueOf(request.getOrDefault("message", ""));
         boolean useKnowledgeBase = Boolean.parseBoolean(String.valueOf(request.getOrDefault("useKnowledgeBase", true)));
         String knowledgeBaseId = String.valueOf(request.getOrDefault("knowledgeBaseId", "default"));
-        String response = agentService.execute(message, useKnowledgeBase, knowledgeBaseId);
+        String sessionId = String.valueOf(request.getOrDefault("sessionId", "default-session-" + System.currentTimeMillis()));
+        String response = agentService.execute(message, useKnowledgeBase, knowledgeBaseId, sessionId);
         return Map.of("response", response);
     }
 

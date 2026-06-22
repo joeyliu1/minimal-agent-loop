@@ -52,12 +52,12 @@
                 </dependency>
 
                 <!-- Milvus Vector Store -->
-                <dependency>
-                    <groupId>org.springframework.ai</groupId>
-                    <artifactId>spring-ai-starter-vector-store-milvus</artifactId>
-                </dependency>
+                        <dependency>
+                            <groupId>org.springframework.ai</groupId>
+                            <artifactId>spring-ai-starter-vector-store-milvus</artifactId>
+                        </dependency>
 
-        <!-- Chat Memory -->
+                <!-- Chat Memory -->
 
                 <!-- MySQL for Chat Memory -->
                 <dependency>

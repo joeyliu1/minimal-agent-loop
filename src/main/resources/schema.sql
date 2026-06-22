@@ -25,22 +25,13 @@ VALUES ('default', '默认知识库', '系统默认知识库');
 CREATE TABLE IF NOT EXISTS rag_documents (
     id VARCHAR(64) PRIMARY KEY,
     knowledge_base_id VARCHAR(64) NOT NULL DEFAULT 'default',
-    content TEXT NOT NULL,
+    `doc_content` TEXT NOT NULL,
     source VARCHAR(512) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_knowledge_base_id (knowledge_base_id),
     INDEX idx_source (source),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    session_id  VARCHAR(36)  NOT NULL,
-    role        VARCHAR(20)  NOT NULL,  -- 'user' or 'assistant'
-    content     TEXT         NOT NULL,
-    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_session (session_id),
-    INDEX idx_created  (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Chat sessions metadata
 CREATE TABLE IF NOT EXISTS chat_sessions (

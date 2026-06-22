@@ -9,10 +9,9 @@ spring:
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  # 启动时自动创建数据库表
   sql:
     init:
-      mode: always
+      mode: never
 
   # 通义千问 API配置
   ai:
@@ -43,7 +42,7 @@ spring:
       initializeSchema: true # 自动创建集合
 
 server:
-  port: 8085
+  port: 8086
 
 agent:
   max-steps: 10

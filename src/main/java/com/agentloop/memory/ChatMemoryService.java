@@ -1,6 +1,8 @@
 package com.agentloop.memory;
 
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +17,7 @@ import java.util.Map;
 @Service
 public class ChatMemoryService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatMemoryService.class);
     private final JdbcTemplate jdbc;
     private static final int DEFAULT_WINDOW_SIZE = 20;
 
@@ -24,7 +27,37 @@ public class ChatMemoryService {
 
     @PostConstruct
     public void init() {
-        jdbc.execute("SELECT 1 FROM chat_messages WHERE 1=0");
+        String createTableSQL = """
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                session_id VARCHAR(255) NOT NULL,
+                role VARCHAR(10) NOT NULL COMMENT 'user or assistant',
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_session (session_id),
+                INDEX idx_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """;
+        try {
+            jdbc.execute(createTableSQL);
+            log.info("Chat memory table initialized successfully");
+        } catch (Exception e) {
+            // Table might already exist, which is fine
+            if (e.getMessage() != null && !e.getMessage().contains("already exists") 
+                    && !e.getMessage().contains("Duplicate column")) {
+                log.error("Failed to initialize chat memory table: {}", e.getMessage(), e);
+            } else {
+                log.debug("Chat memory table already exists");
+            }
+        }
+        
+        // Verify the table is accessible
+        try {
+            Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM chat_messages", Integer.class);
+            log.info("Chat messages table ready, current row count: {}", count);
+        } catch (Exception e) {
+            log.warn("Could not verify chat messages table: {}", e.getMessage());
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.agentloop.service;
 
 import com.agentloop.config.AgentProperties;
+import com.agentloop.memory.ChatMemoryService;
 import com.agentloop.rag.RetrievalService;
 import com.agentloop.tools.*;
 import org.slf4j.Logger;
@@ -35,11 +36,13 @@ public class AgentService {
     private final RetrievalService retrievalService;
     private final RagTool ragTool;
     private final ToolCallingManager toolCallingManager;
+    private final ChatMemoryService memoryService;
     private final int maxSteps;
     private final long timeoutSeconds;
 
     public AgentService(
                 RetrievalService retrievalService,
+                ChatMemoryService memoryService,
                 ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                 WebSearchTool webSearchTool,
                 MathTool mathTool,
@@ -49,6 +52,7 @@ public class AgentService {
                 AgentProperties properties
         ) {
             this.retrievalService = retrievalService;
+            this.memoryService = memoryService;
             this.ragTool = ragTool;
             this.toolCallingManager = DefaultToolCallingManager.builder().build();
             this.knowledgeChatClient = chatClientBuilderProvider.getObject()
@@ -86,7 +90,7 @@ public class AgentService {
      * Blocks up to `timeoutSeconds`.
      */
     public String execute(String userMessage) {
-        return execute(userMessage, true);
+        return execute(userMessage, true, null);
     }
 
     public String execute(String userMessage, boolean useKnowledgeBase) {
@@ -94,11 +98,15 @@ public class AgentService {
     }
 
     public String execute(String userMessage, boolean useKnowledgeBase, String knowledgeBaseId) {
-        log.info("AgentService.execute called with: {}, useKnowledgeBase={}, knowledgeBaseId={}",
-                userMessage, useKnowledgeBase, knowledgeBaseId);
+        return execute(userMessage, useKnowledgeBase, knowledgeBaseId, "default-session-" + System.currentTimeMillis());
+    }
+
+    public String execute(String userMessage, boolean useKnowledgeBase, String knowledgeBaseId, String sessionId) {
+        log.info("AgentService.execute called with: {}, useKnowledgeBase={}, knowledgeBaseId={}, sessionId={}",
+                userMessage, useKnowledgeBase, knowledgeBaseId, sessionId);
         ExecutorService exec = Executors.newSingleThreadExecutor();
         try {
-            Future<String> future = exec.submit(() -> loop(userMessage, useKnowledgeBase, knowledgeBaseId));
+            Future<String> future = exec.submit(() -> loop(userMessage, useKnowledgeBase, knowledgeBaseId, sessionId));
             return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             log.warn("Agent loop timeout after {}s", timeoutSeconds);
@@ -117,7 +125,7 @@ public class AgentService {
      * If the model requests tool calls, execute them and append the results
      * to the history; otherwise return the final assistant content.
      */
-    private String loop(String userMessage, boolean useKnowledgeBase, String knowledgeBaseId) {
+    private String loop(String userMessage, boolean useKnowledgeBase, String knowledgeBaseId, String sessionId) {
         ChatClient activeChatClient = useKnowledgeBase ? knowledgeChatClient : directChatClient;
         if (useKnowledgeBase) {
             ragTool.setActiveKnowledgeBaseId(knowledgeBaseId);
@@ -125,8 +133,21 @@ public class AgentService {
             ragTool.clearActiveKnowledgeBaseId();
         }
 
+        // Load recent conversation history from memory
         List<Message> messages = new ArrayList<>();
+        List<ChatMemoryService.ChatMessage> history = memoryService.getRecentMessages(sessionId, 20);
+        for (ChatMemoryService.ChatMessage chatMsg : history) {
+            if ("user".equalsIgnoreCase(chatMsg.role())) {
+                messages.add(new UserMessage(chatMsg.content()));
+            } else if ("assistant".equalsIgnoreCase(chatMsg.role())) {
+                messages.add(new AssistantMessage(chatMsg.content()));
+            }
+        }
+        
+        // Add current user message
         messages.add(new UserMessage(buildInitialUserContent(userMessage, useKnowledgeBase, knowledgeBaseId)));
+        
+        log.info("Loaded {} messages from memory for session {}", history.size(), sessionId);
 
         try {
             for (int step = 0; step < maxSteps; step++) {
@@ -148,6 +169,11 @@ public class AgentService {
                     if (!assistantMessage.hasToolCalls()) {
                         String content = assistantMessage.getText();
                         log.info("Agent response (step {}): {}", step, content);
+                        
+                        // Save to memory
+                        memoryService.addMessage(sessionId, "user", userMessage);
+                        memoryService.addMessage(sessionId, "assistant", content);
+                        
                         return content != null ? content : "";
                     }
 

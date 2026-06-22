@@ -159,11 +159,11 @@ public class DocumentRegistry {
     public List<Map<String, String>> listDocuments(String knowledgeBaseId) {
         String kbId = normalizeKnowledgeBaseId(knowledgeBaseId);
         return jdbc.query(
-                "SELECT id, knowledge_base_id, content, source FROM rag_documents WHERE knowledge_base_id = ? ORDER BY created_at DESC, id DESC",
+                "SELECT id, knowledge_base_id, doc_content, source FROM rag_documents WHERE knowledge_base_id = ? ORDER BY created_at DESC, id DESC",
                 (rs, rowNum) -> Map.of(
                         "id", rs.getString("id"),
                         "knowledgeBaseId", rs.getString("knowledge_base_id"),
-                        "content", rs.getString("content"),
+                        "content", rs.getString("doc_content"),
                         "source", rs.getString("source")
                 ),
                 kbId
@@ -196,7 +196,7 @@ public class DocumentRegistry {
 
     private boolean existsContent(String content, String knowledgeBaseId) {
         Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM rag_documents WHERE knowledge_base_id = ? AND content = ?",
+                "SELECT COUNT(*) FROM rag_documents WHERE knowledge_base_id = ? AND doc_content = ?",
                 Integer.class,
                 normalizeKnowledgeBaseId(knowledgeBaseId),
                 content
@@ -208,7 +208,7 @@ public class DocumentRegistry {
         String kbId = normalizeKnowledgeBaseId(knowledgeBaseId);
         for (var chunk : chunks) {
             jdbc.update(
-                    "INSERT INTO rag_documents (id, knowledge_base_id, content, source) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO rag_documents (id, knowledge_base_id, doc_content, source) VALUES (?, ?, ?, ?)",
                     chunk.id(),
                     kbId,
                     chunk.content(),
