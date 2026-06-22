@@ -42,7 +42,7 @@ spring:
       initializeSchema: true # 自动创建集合
 
 server:
-  port: 8086
+  port: 8085
 
 agent:
   max-steps: 10
