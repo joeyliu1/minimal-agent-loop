@@ -17,14 +17,15 @@ spring:
   ai:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY}
-      base-url: ${BASE_URL:https://dashscope.aliyuncs.com}
+      base-url: https://ws-ca5c0hvl0v2esuv8.cn-beijing.maas.aliyuncs.com
+#      base-url: https://dashscope.aliyuncs.com
       chat:
+        completions-path: /api/v1/services/aigc/multimodal-generation/generation
         options:
-          model: ${MODEL:qwen3-max}
+          model: qwen3.6-35b-a3b
           temperature: ${TEMPERATURE:0.1}
+          multi-model: true
       embedding:
-        # Default v2 has dim 1536 which matches MILVUS_DIMENSION below.
-        # If you switch to text-embedding-v3, set MILVUS_DIMENSION=1024 accordingly.
         options:
           model: ${EMBEDDING_MODEL:text-embedding-v2}
 
@@ -34,24 +35,80 @@ spring:
       client:
         host: localhost
         port: 19530
-        username: "" # default: root
-        password: "" # default: milvus
+        username: ""
+        password: ""
       database-name: default
       collection-name: agent_knowledge
       embedding-dimension: ${MILVUS_DIMENSION:1536}
-      initializeSchema: true # 自动创建集合
+      initializeSchema: true
 
 server:
   port: 8085
 
+# ═══════════════════════════════════════════════════════════════════════
+# Agent 配置
+# ═══════════════════════════════════════════════════════════════════════
 agent:
   max-steps: 10
   timeout-seconds: 120
+  step-timeout-ms: 30000
   file-read:
     base-dir: ${user.dir}
     max-size: 1048576  # 1 MB
+  loop:
+    # 是否启用虚拟线程 (默认 true)
+    virtual-threads: true
+    # 每步 LLM 调用的重试次数
+    llm-retries: 2
+    # 工具调用的最大重试次数
+    tool-retries: 2
+
+# ═══════════════════════════════════════════════════════════════════════
+# Actuator (health, metrics)
+# ═══════════════════════════════════════════════════════════════════════
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+# ═══════════════════════════════════════════════════════════════════════
+# Resilience4j
+# ═══════════════════════════════════════════════════════════════════════
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 500ms
+        exponential-backoff-multiplier: 2
+  ratelimiter:
+    configs:
+      default:
+        limit-for-period: 20
+        limit-refresh-period: 1s
+        timeout-duration: 50ms
 
 logging:
   level:
     root: INFO
     com.agent: DEBUG
+    # 打开 resilience4j 的详细日志
+    io.github.resilience4j: INFO
+  pattern:
+    # 在日志中显示 traceId 和 sessionId
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%mdc{traceId:-no-trace}] - %msg%n"

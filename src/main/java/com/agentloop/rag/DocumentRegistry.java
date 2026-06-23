@@ -238,6 +238,7 @@ public class DocumentRegistry {
     }
 
     private void ensureKnowledgeBaseSchema() {
+        // Create knowledge_bases table
         jdbc.update("""
                 CREATE TABLE IF NOT EXISTS knowledge_bases (
                     id VARCHAR(64) PRIMARY KEY,
@@ -254,16 +255,54 @@ public class DocumentRegistry {
                 "系统默认知识库"
         );
 
-        Integer count = jdbc.queryForObject("""
+        // Create rag_documents table if not exists (PostConstruct + manual migration)
+        jdbc.update("""
+                CREATE TABLE IF NOT EXISTS rag_documents (
+                    id VARCHAR(64) PRIMARY KEY,
+                    knowledge_base_id VARCHAR(64) NOT NULL DEFAULT 'default',
+                    doc_content TEXT NOT NULL,
+                    source VARCHAR(512) NOT NULL DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_kb_id (knowledge_base_id),
+                    INDEX idx_created (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """);
+
+        // Migrate legacy table: add knowledge_base_id column if it doesn't exist
+        Integer hasKbIdCol = jdbc.queryForObject("""
                 SELECT COUNT(*)
                 FROM information_schema.columns
                 WHERE table_schema = DATABASE()
                   AND table_name = 'rag_documents'
                   AND column_name = 'knowledge_base_id'
                 """, Integer.class);
-        if (count == null || count == 0) {
+        if (hasKbIdCol != null && hasKbIdCol == 0) {
             jdbc.update("ALTER TABLE rag_documents ADD COLUMN knowledge_base_id VARCHAR(64) NOT NULL DEFAULT 'default' AFTER id");
-            jdbc.update("CREATE INDEX idx_knowledge_base_id ON rag_documents (knowledge_base_id)");
+            jdbc.update("CREATE INDEX idx_kb_id ON rag_documents (knowledge_base_id)");
+        }
+
+        // Migrate legacy table: add doc_content column if missing (maybe old schema used "content")
+        Integer hasDocContentCol = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'rag_documents'
+                  AND column_name = 'doc_content'
+                """, Integer.class);
+        if (hasDocContentCol != null && hasDocContentCol == 0) {
+            // Check if old "content" column exists and rename it
+            Integer hasContentCol = jdbc.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                      AND table_name = 'rag_documents'
+                      AND column_name = 'content'
+                    """, Integer.class);
+            if (hasContentCol != null && hasContentCol > 0) {
+                jdbc.update("ALTER TABLE rag_documents CHANGE COLUMN content doc_content TEXT NOT NULL");
+            } else {
+                jdbc.update("ALTER TABLE rag_documents ADD COLUMN doc_content TEXT NOT NULL AFTER knowledge_base_id");
+            }
         }
     }
 }
