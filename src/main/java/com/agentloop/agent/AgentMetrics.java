@@ -110,7 +110,7 @@ public class AgentMetrics implements MeterBinder {
     }
 
     public void recordToolError(String toolName) {
-        toolCallCounters.computeIfAbsent(toolName, n ->
+        toolErrorCounters.computeIfAbsent(toolName, n ->
                 Counter.builder("agent.tool.errors")
                         .tag("tool", n)
                         .description("Tool error count per tool")

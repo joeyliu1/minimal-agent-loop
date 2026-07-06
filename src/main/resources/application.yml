@@ -52,16 +52,13 @@ agent:
   max-steps: 10
   timeout-seconds: 120
   step-timeout-ms: 30000
+  # 每步 LLM 调用的重试次数
+  llm-retries: 2
+  # 工具调用的最大重试次数
+  tool-retries: 2
   file-read:
     base-dir: ${user.dir}
     max-size: 1048576  # 1 MB
-  loop:
-    # 是否启用虚拟线程 (默认 true)
-    virtual-threads: true
-    # 每步 LLM 调用的重试次数
-    llm-retries: 2
-    # 工具调用的最大重试次数
-    tool-retries: 2
 
 # ═══════════════════════════════════════════════════════════════════════
 # Actuator (health, metrics)

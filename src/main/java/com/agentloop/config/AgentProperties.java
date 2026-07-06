@@ -13,7 +13,6 @@ public class AgentProperties {
     private int stepTimeoutMs = 30_000;
     private int llmRetries = 2;
     private int toolRetries = 2;
-    private boolean virtualThreads = true;
 
     // ── Getters & Setters ───────────────────────────────────────────────
 
@@ -32,6 +31,4 @@ public class AgentProperties {
     public int getToolRetries() { return toolRetries; }
     public void setToolRetries(int toolRetries) { this.toolRetries = toolRetries; }
 
-    public boolean isVirtualThreads() { return virtualThreads; }
-    public void setVirtualThreads(boolean virtualThreads) { this.virtualThreads = virtualThreads; }
 }

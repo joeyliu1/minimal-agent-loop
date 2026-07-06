@@ -1,7 +1,6 @@
 package com.agentloop.agent;
 
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import com.agentloop.config.AgentProperties;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import io.micrometer.core.instrument.Timer;
@@ -31,14 +30,14 @@ public class ResilientToolExecutor {
 
     private final ToolCallingManager toolCallingManager;
     private final AgentMetrics metrics;
+    private final int maxRetries;
 
     private final ConcurrentHashMap<String, RateLimiter> rateLimiters = new ConcurrentHashMap<>();
 
-    private static final int MAX_RETRIES = 2;
-
-    public ResilientToolExecutor(ToolCallingManager toolCallingManager, AgentMetrics metrics) {
+    public ResilientToolExecutor(ToolCallingManager toolCallingManager, AgentMetrics metrics, AgentProperties properties) {
         this.toolCallingManager = toolCallingManager;
         this.metrics = metrics;
+        this.maxRetries = Math.max(1, properties.getToolRetries());
     }
 
     /**
@@ -70,14 +69,14 @@ public class ResilientToolExecutor {
         Map<String, String> mdcContext = MDC.getCopyOfContextMap();
         Exception lastError = null;
 
-        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 if (mdcContext != null) MDC.setContextMap(mdcContext);
 
                 if (attempt > 1) {
                     long delay = 500L * (1L << (attempt - 2));
                     log.info("Retry {}/{} for {} tool(s) after {}ms",
-                            attempt, MAX_RETRIES, toolCalls.size(), delay);
+                            attempt, maxRetries, toolCalls.size(), delay);
                     Thread.sleep(delay);
                 }
 
@@ -91,7 +90,6 @@ public class ResilientToolExecutor {
                     );
 
                     long elapsed = System.currentTimeMillis() - startMs;
-                    metrics.stopToolTimer(toolTimer);
 
                     int historySize = (result != null && result.conversationHistory() != null)
                             ? result.conversationHistory().size() : 0;
@@ -109,7 +107,7 @@ public class ResilientToolExecutor {
 
             } catch (Exception e) {
                 lastError = e;
-                log.warn("Tool batch attempt {}/{} failed: {}", attempt, MAX_RETRIES, e.getMessage());
+                log.warn("Tool batch attempt {}/{} failed: {}", attempt, maxRetries, e.getMessage());
             } finally {
                 MDC.clear();
                 if (mdcContext != null) MDC.setContextMap(mdcContext);
@@ -120,7 +118,7 @@ public class ResilientToolExecutor {
         for (var tc : toolCalls) {
             metrics.recordToolError(tc.name());
         }
-        log.error("Tool batch failed after {} retries: {}", MAX_RETRIES,
+        log.error("Tool batch failed after {} attempt(s): {}", maxRetries,
                 lastError != null ? lastError.getMessage() : "unknown");
         return List.of();
     }

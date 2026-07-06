@@ -78,19 +78,29 @@ public class ChatMemoryService {
     }
 
     /**
-         * Get recent N messages in chronological order (oldest first — for ChatClient).
-         */
-        public List<ChatMessage> getRecentMessages(String sessionId, int count) {
-            List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
-                sessionId, count
-            );
-            List<ChatMessage> messages = new ArrayList<>();
-            for (Map<String, Object> row : rows) {
-                messages.add(new ChatMessage((String) row.get("role"), (String) row.get("content")));
-            }
-            return messages;
+     * Get recent N messages in chronological order (oldest first — for ChatClient).
+     */
+    public List<ChatMessage> getRecentMessages(String sessionId, int count) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            """
+            SELECT role, content
+            FROM (
+                SELECT id, role, content, created_at
+                FROM chat_messages
+                WHERE session_id = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+            ) recent
+            ORDER BY created_at ASC, id ASC
+            """,
+            sessionId, count
+        );
+        List<ChatMessage> messages = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            messages.add(new ChatMessage((String) row.get("role"), (String) row.get("content")));
         }
+        return messages;
+    }
 
     /**
      * Clear session memory.

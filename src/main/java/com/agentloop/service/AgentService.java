@@ -46,8 +46,7 @@ public class AgentService {
         this.metrics = metrics;
         this.maxSteps = properties.getMaxSteps();
         this.timeoutSeconds = properties.getTimeoutSeconds();
-        // Default: each step up to 30s, total timeout from properties
-        this.stepTimeoutMs = 30_000;
+        this.stepTimeoutMs = properties.getStepTimeoutMs();
 
         log.info("AgentService initialized (facade mode): maxSteps={}, totalTimeout={}s, stepTimeout={}ms",
                 maxSteps, timeoutSeconds, stepTimeoutMs);

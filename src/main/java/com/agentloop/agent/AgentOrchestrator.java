@@ -1,23 +1,21 @@
 package com.agentloop.agent;
 
+import com.agentloop.config.AgentProperties;
 import com.agentloop.memory.ChatMemoryService;
 import com.agentloop.rag.RetrievalService;
 import com.agentloop.tools.*;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -51,6 +49,7 @@ public class AgentOrchestrator {
     private final RagTool ragTool;
     private final ResilientToolExecutor toolExecutor;
     private final AgentMetrics metrics;
+    private final int llmRetries;
 
     // Executor for the entire agent loop (one loop per submit)
     private final ExecutorService loopExecutor;
@@ -69,13 +68,15 @@ public class AgentOrchestrator {
             WebSearchTool webSearchTool,
             MathTool mathTool,
             FileReadTool fileReadTool,
-            CurrentDateTool currentDateTool) {
+            CurrentDateTool currentDateTool,
+            AgentProperties properties) {
 
         this.memoryService = memoryService;
         this.retrievalService = retrievalService;
         this.toolExecutor = toolExecutor;
         this.metrics = metrics;
         this.ragTool = ragTool;
+        this.llmRetries = Math.max(1, properties.getLlmRetries());
 
         // ChatClient with full tool set (including RAG)
         this.knowledgeChatClient = chatClientBuilderProvider.getObject()
@@ -133,12 +134,14 @@ public class AgentOrchestrator {
 
         ctx.markLoopStart();
 
+        Future<String> future = loopExecutor.submit(() -> runLoop(ctx));
         try {
-            Future<String> future = loopExecutor.submit(() -> runLoop(ctx));
             return future.get(ctx.getTotalTimeoutMs(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             log.warn("Agent loop timed out after {}ms for session {}", ctx.getTotalTimeoutMs(), ctx.getSessionId());
             ctx.transitionTo(AgentLoopState.ERROR);
+            // Best effort cancellation. HTTP callers still receive the timeout response immediately.
+            future.cancel(true);
             return "[timeout] agent loop exceeded " + ctx.getTotalTimeoutMs() / 1000 + "s";
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
@@ -154,7 +157,7 @@ public class AgentOrchestrator {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Core loop (runs on virtual thread)
+    // Core loop
     // ═══════════════════════════════════════════════════════════════════════
 
     private String runLoop(AgentContext ctx) {
@@ -276,16 +279,31 @@ public class AgentOrchestrator {
     // ═══════════════════════════════════════════════════════════════════════
 
     private ChatResponse callLlm(ChatClient chatClient, AgentContext ctx) {
-        try {
-            return chatClient.prompt()
-                    .messages(ctx.getMessages())
-                    .advisors(new SimpleLoggerAdvisor())
-                    .call()
-                    .chatResponse();
-        } catch (Exception e) {
-            log.error("LLM call failed at step {}: {}", ctx.getCurrentStep(), e.getMessage());
-            throw e;
+        Exception lastError = null;
+        for (int attempt = 1; attempt <= llmRetries; attempt++) {
+            try {
+                if (attempt > 1) {
+                    long delayMs = 500L * (1L << (attempt - 2));
+                    log.info("Retry {}/{} for LLM call after {}ms", attempt, llmRetries, delayMs);
+                    Thread.sleep(delayMs);
+                }
+                return chatClient.prompt()
+                        .messages(ctx.getMessages())
+                        .advisors(new SimpleLoggerAdvisor())
+                        .call()
+                        .chatResponse();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("LLM call interrupted", e);
+            } catch (Exception e) {
+                lastError = e;
+                log.warn("LLM call attempt {}/{} failed at step {}: {}",
+                        attempt, llmRetries, ctx.getCurrentStep(), e.getMessage());
+            }
         }
+        log.error("LLM call failed after {} attempt(s) at step {}: {}",
+                llmRetries, ctx.getCurrentStep(), lastError != null ? lastError.getMessage() : "unknown");
+        throw new RuntimeException(lastError != null ? lastError.getMessage() : "LLM call failed", lastError);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
