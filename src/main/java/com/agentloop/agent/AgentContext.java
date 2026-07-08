@@ -73,7 +73,9 @@ public class AgentContext {
         // Seed metadata
         metadata.put("traceId", traceId);
         metadata.put("sessionId", this.sessionId);
-        metadata.put("knowledgeBaseId", knowledgeBaseId);
+        if (knowledgeBaseId != null) {
+            metadata.put("knowledgeBaseId", knowledgeBaseId);
+        }
 
         // Set MDC for logging
         MDC.put("traceId", traceId);
@@ -121,7 +123,11 @@ public class AgentContext {
     public Map<String, Object> getMetadata() { return metadata; }
     @SuppressWarnings("unchecked")
     public <T> T getMeta(String key) { return (T) metadata.get(key); }
-    public void setMeta(String key, Object value) { metadata.put(key, value); }
+    public void setMeta(String key, Object value) {
+        if (key != null && value != null) {
+            metadata.put(key, value);
+        }
+    }
 
     // ── Accessors ────────────────────────────────────────────────────────────
 

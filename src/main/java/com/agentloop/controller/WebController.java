@@ -1,5 +1,6 @@
 package com.agentloop.controller;
 
+import com.agentloop.memory.ChatMemoryService;
 import com.agentloop.rag.DocumentParser;
 import com.agentloop.rag.IndexingService;
 import com.agentloop.service.AgentService;
@@ -19,11 +20,14 @@ public class WebController {
     private final AgentService agentService;
     private final IndexingService indexingService;
     private final DocumentParser documentParser;
+    private final ChatMemoryService memoryService;
 
-    public WebController(AgentService agentService, IndexingService indexingService, DocumentParser documentParser) {
+    public WebController(AgentService agentService, IndexingService indexingService,
+                         DocumentParser documentParser, ChatMemoryService memoryService) {
         this.agentService = agentService;
         this.indexingService = indexingService;
         this.documentParser = documentParser;
+        this.memoryService = memoryService;
     }
 
     @GetMapping("/")
@@ -128,5 +132,25 @@ public class WebController {
     @GetMapping("/api/health")
     public Map<String, String> health() {
         return Map.of("status", "ok");
+    }
+
+    // ── Conversation history ──────────────────────────────────────────────
+
+    @GetMapping("/api/sessions")
+    public Map<String, Object> listSessions() {
+        var sessions = memoryService.listSessions();
+        return Map.of("status", "ok", "count", sessions.size(), "sessions", sessions);
+    }
+
+    @GetMapping("/api/sessions/{sessionId}/messages")
+    public Map<String, Object> getSessionMessages(@PathVariable String sessionId) {
+        var messages = memoryService.getRecentMessages(sessionId);
+        return Map.of("status", "ok", "sessionId", sessionId, "messages", messages);
+    }
+
+    @DeleteMapping("/api/sessions")
+    public Map<String, String> deleteSession(@RequestParam String sessionId) {
+        memoryService.clearSession(sessionId);
+        return Map.of("status", "ok", "message", "会话已删除");
     }
 }

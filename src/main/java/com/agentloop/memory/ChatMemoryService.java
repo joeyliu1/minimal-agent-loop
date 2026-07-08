@@ -127,7 +127,41 @@ public class ChatMemoryService {
     }
 
     /**
+     * List all sessions with a short summary (for the conversation-history UI).
+     * title = first user message of the session; lastActive = latest message time.
+     */
+    public List<SessionSummary> listSessions() {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+            SELECT s.session_id                                   AS session_id,
+                   (SELECT content FROM chat_messages t
+                      WHERE t.session_id = s.session_id AND t.role = 'user'
+                      ORDER BY t.created_at ASC, t.id ASC LIMIT 1) AS title,
+                   COUNT(*)                                        AS msg_count,
+                   MAX(created_at)                                 AS last_active
+            FROM (SELECT DISTINCT session_id FROM chat_messages) s
+            JOIN chat_messages m ON m.session_id = s.session_id
+            GROUP BY s.session_id
+            ORDER BY last_active DESC
+            """);
+        List<SessionSummary> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            String sid = (String) row.get("session_id");
+            String title = (String) row.get("title");
+            Object cnt = row.get("msg_count");
+            int count = cnt instanceof Number n ? n.intValue() : 0;
+            String lastActive = row.get("last_active") == null ? "" : row.get("last_active").toString();
+            result.add(new SessionSummary(sid, title, count, lastActive));
+        }
+        return result;
+    }
+
+    /**
      * Chat message record.
      */
     public record ChatMessage(String role, String content) {}
+
+    /**
+     * Per-session summary for listing conversations.
+     */
+    public record SessionSummary(String sessionId, String title, int messageCount, String lastActive) {}
 }
