@@ -231,8 +231,16 @@
         @keyframes msg-in {
             to { opacity: 1; transform: translateX(0); }
         }
-        .msg-row.user { --accent: var(--accent-user); --glow: var(--glow-user); }
-        .msg-row.agent { --accent: var(--accent-agent); --glow: var(--glow-agent); }
+        .msg-row.user {
+            --accent: var(--accent-user);
+            --glow: var(--glow-user);
+            flex-direction: row-reverse;
+            transform: translateX(8px);
+        }
+        .msg-row.agent {
+            --accent: var(--accent-agent);
+            --glow: var(--glow-agent);
+        }
 
         .msg-prompt {
             flex-shrink: 0;
@@ -250,6 +258,13 @@
             font-size: 13px;
             line-height: 1.8;
             color: var(--fg);
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .msg-row.user .msg-content {
+            flex: 0 1 auto;
+            max-width: 75%;
+            text-align: right;
         }
         .msg-content code {
             background: rgba(255,255,255,0.08);
@@ -472,6 +487,7 @@
             .mobile-toggle { display: flex; }
             .status-bar { padding: 10px 16px; }
             .chat-area { padding: 16px; }
+            .msg-row.user .msg-content { max-width: 85%; }
         }
     </style>
 </head>
@@ -600,33 +616,16 @@
     function typewriterEffect(text) {
         var area = document.getElementById('chatArea');
         var ts = now();
-        var contentSpan = document.createElement('span');
-        contentSpan.className = 'msg-content';
+        var html = formatContent(text);
 
         var row = document.createElement('div');
         row.className = 'msg-row agent';
-        row.innerHTML = '<span class="msg-prompt">◆</span>';
-        row.appendChild(contentSpan);
-        var tsSpan = document.createElement('span');
-        tsSpan.className = 'msg-ts';
-        tsSpan.textContent = ts;
-        row.appendChild(tsSpan);
+        row.innerHTML = '<span class="msg-prompt">◆</span>' +
+            '<span class="msg-content">' + html + '</span>' +
+            '<span class="msg-ts">' + ts + '</span>';
         area.appendChild(row);
         area.scrollTop = area.scrollHeight;
-
-        var i = 0;
-        var speed = 15;
-        function type() {
-            if (i < text.length) {
-                contentSpan.textContent += text.charAt(i);
-                i++;
-                area.scrollTop = area.scrollHeight;
-                setTimeout(type, speed);
-            } else {
-                messages.push({ type: 'agent', content: text, ts: ts });
-            }
-        }
-        type();
+        messages.push({ type: 'agent', content: text, ts: ts });
     }
 
     function setLoading(loading) {
