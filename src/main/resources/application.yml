@@ -18,6 +18,8 @@ spring:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY}
       base-url: https://dashscope.aliyuncs.com
+      # 当前 SDK 默认仅等待 10 秒；复杂提示可能来不及返回。
+      read-timeout: ${DASHSCOPE_READ_TIMEOUT:45}
       chat:
         options:
           model: qwen3.7-max-2026-05-20

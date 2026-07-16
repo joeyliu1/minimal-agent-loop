@@ -1,203 +1,343 @@
 # Minimal Agent Loop
 
-一个用于学习 Spring AI Alibaba Function Calling、Agent Loop 和 RAG 的最小示例项目。
+一个用于学习和实现 AI Agent 核心机制的轻量级项目。
 
-项目故意保留了较直接的分层方式：Controller 负责 HTTP，Service 负责对外门面，Orchestrator 负责 Agent 循环，Tools 负责模型可调用能力，RAG 模块负责文档入库和检索。
+项目基于 Spring Boot、Spring AI Alibaba 和通义千问，实现了一个可运行的 ReAct 风格 Agent Loop。你可以通过网页实验室发起任务、观察 Agent Loop 的基本阶段，并学习工具调用、对话记忆、失败重试和运行指标等能力。
+
+> 这个项目优先考虑结构清晰和便于学习，不以生产级 Agent 平台为目标。
+
+## 项目特性
+
+- ReAct 风格 Agent Loop：模型可以直接回答，也可以调用工具后继续推理
+- 基于状态机管理 `THINKING`、`TOOL_CALLING`、`RESPONDING` 和异常状态
+- 内置计算、日期、本地文件读取和模拟搜索工具
+- 使用 MySQL 持久化最近的对话上下文
+- 支持会话列表、历史消息读取和会话删除
+- LLM 与工具调用失败重试
+- Agent 总超时、最大步骤数和文件读取范围限制
+- Micrometer、Prometheus 和 Actuator 运行指标
+- 面向学习场景设计的响应式 Web 实验室
+
+## Agent 学习实验室
+
+启动项目后访问 [http://localhost:8085](http://localhost:8085)，即可进入学习页面。
+
+页面由三个主要区域组成：
+
+| 区域 | 作用 |
+| --- | --- |
+| 学习路径与实验记录 | 展示 Agent 学习顺序，并管理历史会话 |
+| Agent Playground | 输入任务、查看用户与 Agent 的对话结果 |
+| Loop 观察器 | 演示 `Observe → Think → Act → Answer` 的基本执行阶段 |
+
+学习路径聚焦 Agent 自身能力。它不是静态目录，每个阶段都是一个可以操作的微型课程：
+
+| 课程 | 学习重点 | 实验方式 | 关联源码 |
+| --- | --- | --- | --- |
+| 理解 Agent Loop | 推理、行动和状态变化 | 对比直接回答与工具调用路径 | `AgentOrchestrator`、`AgentContext` |
+| 探索工具调用 | 工具选择、参数和结果回填 | 分别触发计算、日期和文件工具 | `MathTool`、`FileReadTool`、`ResilientToolExecutor` |
+| 加入对话记忆 | session 隔离与上下文恢复 | 用两轮对话写入并验证实验代号 | `ChatMemoryService`、`AgentService` |
+| 观察执行与容错 | 最大步骤、超时、重试和指标 | 主动触发文件错误并分析运行边界 | `AgentProperties`、`AgentMetrics` |
+
+点击任一课程后，页面会同步更新：
+
+- 中间课程标题、学习摘要、预计时间和关联源码
+- 本节专属的实验任务卡片与主实验提示词
+- 右侧学习目标和核心概念说明
+- “载入实验任务”按钮会把推荐任务直接写入输入框
+- “标记完成”会更新左侧完成状态，并通过浏览器本地存储保留学习进度
+
+页面同时支持：
+
+- 用户消息右侧显示，Agent 消息左侧显示
+- 新建、切换、清空和删除实验会话
+- 四节可切换课程及独立的动手实验
+- 一键载入实验提示词和持久化课程完成状态
+- Markdown 风格回答、代码块和长文本换行
+- Agent 执行中的加载状态与 Loop 阶段动画
+- 桌面、平板和移动端响应式布局
+
+> 当前 Loop 观察器是帮助理解执行流程的前端教学动画，并非后端逐步骤实时事件。若需要展示真实工具名称、参数、耗时和执行结果，可以在后续接入 SSE 或 WebSocket 事件流。
 
 ## 你可以学到什么
 
-- 如何用 `ChatClient.defaultTools(...)` 给模型注册工具
-- 如何组织一个简单的 Agent Loop：思考、调用工具、把工具结果放回上下文、继续生成
-- 如何做一个基础 RAG 流程：文档解析、分块、向量入库、检索、带来源回答
-- 如何给对话加会话记忆
-- 如何用 Actuator 和 Micrometer 暴露 Agent 运行指标
+1. 如何使用 `ChatClient.defaultTools(...)` 注册模型可调用工具
+2. 如何组织“模型推理 → 工具调用 → 结果回填 → 继续推理”的 Agent Loop
+3. 如何用 `AgentContext` 保存一次执行的消息、步骤和状态
+4. 如何限制最大步骤数、总执行时间和工具访问范围
+5. 如何实现 LLM 与工具调用的失败重试
+6. 如何从 MySQL 恢复最近会话上下文
+7. 如何记录 Agent 步骤、工具和执行耗时指标
+8. 如何为 Agent 构建一个面向学习的交互页面
 
 ## 技术栈
 
 | 模块 | 技术 |
 | --- | --- |
-| Web/API | Spring Boot 3.3 |
-| LLM/Embedding | Spring AI Alibaba DashScope |
+| Web / REST API | Spring Boot 3.3 |
+| LLM | Spring AI Alibaba DashScope |
+| 模型 | 通义千问 |
 | Agent 工具调用 | Spring AI Tool Calling |
-| 向量库 | Milvus |
-| 元数据/记忆 | MySQL + JdbcTemplate |
-| 指标 | Spring Boot Actuator + Micrometer + Prometheus |
+| 对话记忆 | MySQL + JdbcTemplate |
+| 容错 | Resilience4j |
+| 指标 | Actuator + Micrometer + Prometheus |
+| 前端 | 原生 HTML、CSS、JavaScript |
 | Java | 17+ |
 
-## 运行前准备
+## Agent Loop 工作方式
 
-当前配置使用 MySQL 和 Milvus，不是纯内存模式。
+一次对话请求的执行链路如下：
 
-1. 设置通义千问 API Key：
+```text
+浏览器 POST /api/chat
+  └─ WebController.chat(...)
+      └─ AgentService.execute(...)
+          ├─ 创建 AgentContext
+          ├─ 加入当前 UserMessage
+          └─ AgentOrchestrator.execute(...)
+              ├─ 读取最近 20 条会话消息
+              ├─ 调用 LLM
+              ├─ 是否产生工具调用？
+              │   ├─ 是：执行工具并把结果加入上下文
+              │   │      └─ 回到 LLM 继续推理
+              │   └─ 否：生成最终回答
+              └─ 保存用户消息与 Agent 回答到 MySQL
+```
+
+核心循环可以简化为：
+
+```text
+THINKING
+   │
+   ├─ 没有 tool call ──> RESPONDING ──> 返回答案
+   │
+   └─ 存在 tool call ──> TOOL_CALLING
+                              │
+                              └─ 工具结果加入上下文 ──> THINKING
+```
+
+循环会在以下情况终止：
+
+- 模型生成不包含工具调用的最终回答
+- 达到 `agent.max-steps`
+- 超过 `agent.timeout-seconds`
+- LLM 或工具执行发生不可恢复错误
+
+## 内置工具
+
+| 工具名 | 实现类 | 用途 |
+| --- | --- | --- |
+| `calculator` | `MathTool` | 执行数学表达式计算 |
+| `get_date` | `CurrentDateTool` | 获取当前日期和时间 |
+| `read_file` | `FileReadTool` | 读取允许目录内的文本文件 |
+| `search` | `WebSearchTool` | 返回模拟搜索结果，用于学习工具调用 |
+
+### 添加新工具
+
+1. 在 `com.agentloop.tools` 下创建一个 Spring `@Component`。
+2. 使用 `@Tool` 标注模型可调用的方法。
+3. 使用 `@ToolParam` 描述参数含义。
+4. 在 `AgentOrchestrator` 的 `defaultTools(...)` 中注册工具实例。
+5. 添加一个能够明确触发该工具的测试问题。
+
+## 项目结构
+
+```text
+src/main
+├── java/com/agentloop
+│   ├── AgentApplication.java
+│   ├── agent
+│   │   ├── AgentContext.java
+│   │   ├── AgentLoopState.java
+│   │   ├── AgentMetrics.java
+│   │   ├── AgentOrchestrator.java
+│   │   ├── MdcFilter.java
+│   │   └── ResilientToolExecutor.java
+│   ├── config
+│   │   ├── AgentProperties.java
+│   │   └── ChatClientConfig.java
+│   ├── controller
+│   │   └── WebController.java
+│   ├── memory
+│   │   ├── ChatMemoryService.java
+│   │   └── ChatSessionService.java
+│   ├── service
+│   │   └── AgentService.java
+│   └── tools
+│       ├── CurrentDateTool.java
+│       ├── FileReadTool.java
+│       ├── MathTool.java
+│       └── WebSearchTool.java
+└── resources
+    ├── application.yml
+    └── static
+        └── index.html
+```
+
+推荐按以下顺序阅读：
+
+1. `WebController.java`：了解浏览器请求如何进入应用
+2. `AgentService.java`：了解一次执行上下文如何创建和保存
+3. `AgentContext.java` 与 `AgentLoopState.java`：了解状态和步骤数据
+4. `AgentOrchestrator.java`：阅读 Agent Loop 核心实现
+5. `ResilientToolExecutor.java`：了解工具执行、重试与指标
+6. `tools/`：学习 Tool Calling 的声明方式
+7. `ChatMemoryService.java`：学习会话上下文持久化
+8. `index.html`：了解学习实验室的前端实现
+
+## 运行要求
+
+- JDK 17 或更高版本
+- Maven 3.9+
+- MySQL 8.x
+- 通义千问 DashScope API Key
+
+## 启动项目
+
+### 1. 配置 API Key
 
 ```bash
 export AI_DASHSCOPE_API_KEY=your-api-key
 ```
 
-2. 准备 MySQL：
+可选设置模型温度：
 
-默认配置见 [application.yml](/src/main/resources/application.yml)：
+```bash
+export TEMPERATURE=0.1
+```
+
+复杂任务响应较慢时，可以调整 DashScope HTTP 读取超时，单位为秒：
+
+```bash
+export DASHSCOPE_READ_TIMEOUT=45
+```
+
+项目会关闭 Spring AI 内层重试，统一由 `AgentOrchestrator` 根据 `agent.llm-retries` 执行重试，避免两层重试导致请求时间和日志数量成倍增加。
+
+### 2. 准备 MySQL
+
+默认配置为：
 
 ```yaml
-spring.datasource.url: jdbc:mysql://localhost:3306/minimal-agent-loop
-spring.datasource.username: root
-spring.datasource.password: 123456
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/minimal-agent-loop
+    username: root
+    password: 123456
 ```
 
-3. 准备 Milvus：
+连接参数包含 `createDatabaseIfNotExist=true`。数据库账户拥有建库权限时，应用可以自动创建数据库；`chat_messages` 表会在应用启动时创建。
+
+如本地配置不同，请修改 `src/main/resources/application.yml`，或通过 Spring Boot 支持的环境变量覆盖配置。
+
+### 3. 编译并启动
 
 ```bash
-docker run -d --name milvus-standalone -p 19530:19530 milvusdb/milvus:latest
-```
-
-如果你本地已有 Milvus，只要确认 `localhost:19530` 可访问即可。
-
-## 启动
-
-```bash
+mvn test
 mvn spring-boot:run
 ```
 
-默认端口是 `8085`：
+应用默认运行在 `8085` 端口：
 
-- 聊天页：`http://localhost:8085/`
-- 知识库页：`http://localhost:8085/knowledge`
-- 健康检查：`http://localhost:8085/api/health`
-- Prometheus 指标：`http://localhost:8085/actuator/prometheus`
+- 学习实验室：<http://localhost:8085/>
+- 健康接口：<http://localhost:8085/api/health>
+- Actuator 健康检查：<http://localhost:8085/actuator/health>
+- Prometheus 指标：<http://localhost:8085/actuator/prometheus>
 
-命令行单次执行：
+## API
 
-```bash
-mvn spring-boot:run -Dspring-boot.run.arguments="今天几号？"
+### 发起 Agent 对话
+
+```http
+POST /api/chat
+Content-Type: application/json
+
+{
+  "message": "帮我计算 12 * 8",
+  "sessionId": "learning-session-01"
+}
 ```
 
-## 项目结构
+响应：
 
-```text
-src/main/java/com/agentloop
-├── AgentApplication.java          # Spring Boot 入口；支持交互模式和单次执行
-├── controller/
-│   └── WebController.java         # Web 页面跳转、聊天 API、知识库 API
-├── service/
-│   └── AgentService.java          # 对外执行门面，创建 AgentContext 并保存记忆
-├── agent/
-│   ├── AgentOrchestrator.java     # Agent Loop 核心状态机
-│   ├── AgentContext.java          # 单次执行上下文
-│   ├── AgentLoopState.java        # Loop 状态定义
-│   ├── ResilientToolExecutor.java # 工具调用重试、限流和指标
-│   ├── AgentMetrics.java          # Micrometer 指标
-│   └── MdcFilter.java             # HTTP traceId/sessionId 日志上下文
-├── tools/
-│   ├── MathTool.java              # calculator
-│   ├── CurrentDateTool.java       # get_date
-│   ├── FileReadTool.java          # read_file
-│   ├── WebSearchTool.java         # search，当前是 mock 实现
-│   └── RagTool.java               # rag_query / rag_add_document
-├── rag/
-│   ├── DocumentParser.java        # 上传文件转文本
-│   ├── DocumentChunker.java       # 文档分块
-│   ├── DocumentRegistry.java      # 文档元数据 + 向量入库
-│   ├── IndexingService.java       # 入库门面
-│   └── RetrievalService.java      # 检索和带引用回答
-├── memory/
-│   ├── ChatMemoryService.java     # 对话消息记忆
-│   └── ChatSessionService.java    # 会话元数据服务，当前未暴露 API
-└── config/
-    ├── AgentProperties.java       # agent.* 配置绑定
-    ├── ChatClientConfig.java
-    └── MilvusVectorStoreConfig.java
+```json
+{
+  "response": "12 × 8 = 96"
+}
 ```
 
-## 请求链路
+### 会话接口
 
-一次聊天请求的大致流程：
-
-```text
-WebController /api/chat
-  -> AgentService.execute(...)
-    -> 创建 AgentContext
-    -> AgentOrchestrator.execute(ctx)
-      -> 读取最近会话记忆
-      -> 如果启用知识库，先尝试 RAG 上下文增强
-      -> 调用 LLM
-      -> 如果 LLM 请求工具，执行工具并把结果放回上下文
-      -> 重复直到模型直接回答、超时或达到最大步数
-    -> 保存 user/assistant 消息到 MySQL
-```
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/sessions` | 获取会话摘要列表 |
+| `GET` | `/api/sessions/{sessionId}/messages` | 获取最近 20 条会话消息 |
+| `DELETE` | `/api/sessions?sessionId={id}` | 删除指定会话的消息 |
+| `GET` | `/api/health` | 获取应用基础健康状态 |
 
 ## 主要配置
 
 ```yaml
 agent:
-  max-steps: 10              # 单次 Agent Loop 最大步数
-  timeout-seconds: 120       # 单次请求总超时
-  step-timeout-ms: 30000     # 单步超时配置，写入 AgentContext
-  llm-retries: 2             # LLM 调用重试次数
-  tool-retries: 2            # 工具调用重试次数
+  max-steps: 10
+  timeout-seconds: 120
+  step-timeout-ms: 30000
+  llm-retries: 2
+  tool-retries: 2
   file-read:
-    base-dir: ${user.dir}    # read_file 允许读取的根目录
-    max-size: 1048576        # 单文件最大读取大小
+    base-dir: ${user.dir}
+    max-size: 1048576
 ```
 
-## 工具说明
+| 配置 | 说明 |
+| --- | --- |
+| `max-steps` | 单次 Agent Loop 最大推理步骤数 |
+| `timeout-seconds` | 单次 Agent 执行总超时时间 |
+| `step-timeout-ms` | 写入执行上下文的单步超时配置 |
+| `llm-retries` | 单步 LLM 调用最大尝试次数 |
+| `tool-retries` | 工具调用重试次数 |
+| `file-read.base-dir` | `read_file` 允许访问的根目录 |
+| `file-read.max-size` | 单个文件允许读取的最大字节数 |
 
-| 工具名 | 类 | 说明 |
+DashScope 连接相关配置：
+
+| 配置 | 默认值 | 说明 |
 | --- | --- | --- |
-| `calculator` | `MathTool` | 安全表达式计算 |
-| `get_date` | `CurrentDateTool` | 当前时间 |
-| `read_file` | `FileReadTool` | 读取 base-dir 内文本文件，带路径逃逸保护 |
-| `search` | `WebSearchTool` | Mock 搜索结果，适合教学占位 |
-| `rag_query` | `RagTool` | 查询知识库 |
-| `rag_add_document` | `RagTool` | 添加单条文档 |
-| `rag_add_documents` | `RagTool` | 批量添加文档 |
+| `spring.ai.dashscope.read-timeout` | `45` | 等待模型返回的 HTTP 读取超时，单位为秒 |
+| `spring.ai.retry.max-attempts` | `1` | 关闭 Spring AI 内层重试，避免与 Agent 重试叠加 |
 
-添加新工具的步骤：
+## 可观测性
 
-1. 在 `com.agentloop.tools` 下创建 `@Component` 类。
-2. 给方法加 `@Tool(name = "...", description = "...")`。
-3. 参数用 `@ToolParam` 描述清楚。
-4. 在 `AgentOrchestrator` 的 `defaultTools(...)` 中注册。
+项目通过 `AgentMetrics` 记录 Agent Loop 和工具执行相关指标，并将指标暴露给 Prometheus。
 
-## RAG 数据流
+同时，`MdcFilter` 会为 HTTP 请求写入日志追踪上下文，方便通过日志定位一次 Agent 执行。
 
-```text
-上传/添加文档
-  -> DocumentParser.parse(...)
-  -> DocumentChunker.chunk(...)
-  -> VectorStore.add(...) 写入 Milvus
-  -> rag_documents 写入 MySQL
-
-用户提问
-  -> RetrievalService.retrieve(...)
-  -> Milvus similaritySearch
-  -> RetrievalService.answerWithCitations(...)
+```bash
+curl http://localhost:8085/actuator/prometheus
 ```
 
-MySQL 是知识库元数据和文档清单，Milvus 是向量检索数据。清空知识库时会先按 MySQL 中的 chunk id 删除 Milvus 向量，再删除 MySQL 元数据。
+## 当前边界
 
-## 学习时建议关注的代码
+- `search` 是教学用模拟实现，没有接入真实搜索服务。
+- Loop 观察器展示的是教学阶段动画，不是后端实时 trace。
+- `step-timeout-ms` 当前保存在执行上下文中；主循环主要通过总超时兜底。
+- 对话记忆依赖 MySQL，项目暂未提供纯内存运行模式。
+- `ChatSessionService` 已包含独立会话表的基础 CRUD，但当前 Web API 使用的是 `ChatMemoryService` 根据消息聚合出的会话摘要。
 
-推荐按这个顺序读：
+## 后续学习路线
 
-1. [AgentApplication.java](/src/main/java/com/agentloop/AgentApplication.java)
-2. [WebController.java](/src/main/java/com/agentloop/controller/WebController.java)
-3. [AgentService.java](/src/main/java/com/agentloop/service/AgentService.java)
-4. [AgentOrchestrator.java](/src/main/java/com/agentloop/agent/AgentOrchestrator.java)
-5. [RagTool.java](/src/main/java/com/agentloop/tools/RagTool.java)
-6. [DocumentRegistry.java](/src/main/java/com/agentloop/rag/DocumentRegistry.java)
-7. [RetrievalService.java](/src/main/java/com/agentloop/rag/RetrievalService.java)
+可以按照以下顺序继续扩展：
 
-## 已知简化
-
-- `WebSearchTool` 当前只是 mock，没有接真实搜索 API。
-- PDF 解析是极简实现，只适合未压缩 ASCII PDF；生产场景建议接 PDFBox。
-- `ChatSessionService` 已有基础 CRUD，但当前 WebController 没有暴露会话管理 API。
-- `step-timeout-ms` 目前写入上下文，主循环按总超时兜底；如果要严格限制每一步，需要给 LLM 和工具执行再加独立超时控制。
+1. 通过 SSE 推送真实 Agent 步骤与工具执行事件
+2. 在 Loop 观察器中展示工具名称、参数、耗时和返回结果
+3. 增加流式模型响应与停止执行功能
+4. 增加人工确认节点（Human in the Loop）
+5. 增加长期记忆、任务规划和多 Agent 协作
 
 ## 验证
 
 ```bash
-mvn -q -DskipTests compile
+mvn test
 ```
 
-更多手动测试用例见 [TEST_GUIDE.md](/TEST_GUIDE.md)。
+更多手动测试场景请查看 [`TEST_GUIDE.md`](TEST_GUIDE.md)。

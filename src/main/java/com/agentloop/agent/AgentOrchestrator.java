@@ -211,7 +211,7 @@ public class AgentOrchestrator {
                 } catch (Exception e) {
                     log.error("Step {} error: {}", ctx.getCurrentStep(), e.getMessage(), e);
                     ctx.transitionTo(AgentLoopState.ERROR);
-                    break;
+                    return userFacingError(e);
                 } finally {
                     metrics.stopStepTimer(stepTimer);
                 }
@@ -267,6 +267,19 @@ public class AgentOrchestrator {
                 lastError != null ? lastError.getMessage() : "unknown");
         throw new RuntimeException(lastError != null ? lastError.getMessage() : "LLM call failed",
                 lastError);
+    }
+
+    private String userFacingError(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (current instanceof java.net.SocketTimeoutException
+                    || (message != null && message.toLowerCase().contains("timeout"))) {
+                return "[timeout] 模型服务响应超时，请稍后重试；如经常发生，可提高 DASHSCOPE_READ_TIMEOUT。";
+            }
+            current = current.getCause();
+        }
+        return "[error] Agent 执行失败，请根据 traceId 查看服务端日志。";
     }
 
     // ═══════════════════════════════════════════════════════════════════════
