@@ -12,16 +12,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * Facade for agent execution.
- * <p>Maintains backward-compatible {@code execute()} signatures while delegating
- * the actual agent loop to {@link AgentOrchestrator}.</p>
- *
- * <h3>Responsibility</h3>
- * <ul>
- *   <li>Build {@link AgentContext} from user inputs</li>
- *   <li>Save the user message into the context</li>
- *   <li>Call orchestrator</li>
- *   <li>Persist the user/assistant pair into {@link ChatMemoryService}</li>
- * </ul>
+ * <p>Builds {@link AgentContext} from user inputs, delegates to
+ * {@link AgentOrchestrator}, and persists conversation pairs.</p>
  */
 @Service
 public class AgentService {
@@ -48,44 +40,26 @@ public class AgentService {
         this.timeoutSeconds = properties.getTimeoutSeconds();
         this.stepTimeoutMs = properties.getStepTimeoutMs();
 
-        log.info("AgentService initialized (facade mode): maxSteps={}, totalTimeout={}s, stepTimeout={}ms",
+        log.info("AgentService initialized: maxSteps={}, totalTimeout={}s, stepTimeout={}ms",
                 maxSteps, timeoutSeconds, stepTimeoutMs);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Public API (backward-compatible)
-    // ═══════════════════════════════════════════════════════════════════════
+    // ── Public API ───────────────────────────────────────────────────────────
 
-    public String execute(String userMessage) {
-        return execute(userMessage, true, null);
-    }
-
-    public String execute(String userMessage, boolean useKnowledgeBase) {
-        return execute(userMessage, useKnowledgeBase, null);
-    }
-
-    public String execute(String userMessage, boolean useKnowledgeBase, String knowledgeBaseId) {
-        return execute(userMessage, useKnowledgeBase, knowledgeBaseId,
-                "default-session-" + System.currentTimeMillis());
-    }
-
-    public String execute(String userMessage, boolean useKnowledgeBase,
-                          String knowledgeBaseId, String sessionId) {
+    public String execute(String userMessage, String sessionId) {
         long startTime = System.currentTimeMillis();
-        log.info("AgentService.execute: msg='{}' useKnowledgeBase={} kbId={} sessionId={}",
-                truncate(userMessage, 100), useKnowledgeBase, knowledgeBaseId, sessionId);
+        log.info("AgentService.execute: msg='{}' sessionId={}",
+                truncate(userMessage, 100), sessionId);
 
-        // Build AgentContext
+        // Build context
         AgentContext ctx = AgentContext.builder()
                 .sessionId(sessionId)
-                .knowledgeBaseId(knowledgeBaseId)
-                .useKnowledgeBase(useKnowledgeBase)
                 .maxSteps(maxSteps)
                 .stepTimeoutMs(stepTimeoutMs)
                 .totalTimeoutMs(timeoutSeconds * 1000)
                 .build();
 
-        // Add the user message as the initial context
+        // Add user message as initial context
         ctx.addMessage(new UserMessage(userMessage));
 
         try {
@@ -97,20 +71,20 @@ public class AgentService {
             memoryService.addMessage(sessionId, "assistant", response);
 
             long elapsed = System.currentTimeMillis() - startTime;
-            log.info("AgentService.execute completed in {}ms for session {}", elapsed, sessionId);
+            log.info("AgentService.execute completed in {}ms for session {}",
+                    elapsed, sessionId);
 
             return response;
 
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
-            log.error("AgentService.execute failed after {}ms: {}", elapsed, e.getMessage(), e);
+            log.error("AgentService.execute failed after {}ms: {}",
+                    elapsed, e.getMessage(), e);
             return "[error] " + e.getMessage();
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Helpers
-    // ═══════════════════════════════════════════════════════════════════════
+    // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static String truncate(String s, int maxLen) {
         if (s == null) return "";

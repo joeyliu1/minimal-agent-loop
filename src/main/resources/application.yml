@@ -22,25 +22,9 @@ spring:
       chat:
         completions-path: /api/v1/services/aigc/multimodal-generation/generation
         options:
-          model: qwen3.6-35b-a3b
+          model: qwen3.5-plus-2026-04-20
           temperature: ${TEMPERATURE:0.1}
           multi-model: true
-      embedding:
-        options:
-          model: ${EMBEDDING_MODEL:text-embedding-v2}
-
-  # Milvus 向量数据库配置
-  vectorstore:
-    milvus:
-      client:
-        host: localhost
-        port: 19530
-        username: ""
-        password: ""
-      database-name: default
-      collection-name: agent_knowledge
-      embedding-dimension: ${MILVUS_DIMENSION:1536}
-      initializeSchema: true
 
 server:
   port: 8085

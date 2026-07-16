@@ -93,7 +93,7 @@
 
         .app-body { position: relative; z-index: 1; flex: 1; display: flex; min-height: 0; }
         .chat-shell { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; max-width: 800px; width: 100%; margin: 0 auto; padding: 12px 20px 0; min-height: 0; }
-        .chat-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding: 8px 4px 4px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+        .chat-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding: 8px 4px 4px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
         .chat-area::-webkit-scrollbar { width: 5px; }
         .chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 99px; }
 
@@ -150,7 +150,7 @@
         .clear-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--glass-border); background: transparent; color: var(--text-3); cursor: pointer; display: grid; place-items: center; transition: all 0.2s var(--ease); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 14px; }
         .clear-btn:hover { background: rgba(255,69,69,0.15); color: #ff6b6b; border-color: rgba(255,107,107,0.3); }
 
-        /* ── 遮罩 + 左侧玻璃抽屉 ── */
+        /* ── Drawer ── */
         .drawer {
             flex: 0 0 auto; width: 0; overflow: hidden;
             display: flex; flex-direction: column; background: var(--glass-bg-strong);
@@ -165,12 +165,7 @@
         .drawer-header h2 { font-size: 16px; font-weight: 600; }
         .drawer-close { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--glass-border-soft); background: transparent; color: var(--text-2); cursor: pointer; font-size: 15px; display: grid; place-items: center; transition: all 0.2s var(--ease); }
         .drawer-close:hover { background: var(--glass-bg-hover); color: var(--text-1); }
-        .drawer-tabs { display: flex; gap: 6px; padding: 0 14px 10px; }
-        .drawer-tab { flex: 1; padding: 8px; border: none; border-radius: var(--r-sm); background: transparent; color: var(--text-2); font-size: 13.5px; cursor: pointer; transition: all 0.2s var(--ease); font-family: inherit; }
-        .drawer-tab.active { background: rgba(59, 158, 255, 0.12); color: var(--accent-strong); font-weight: 600; }
         .drawer-body { flex: 1; overflow-y: auto; padding: 4px 12px 18px; }
-        .drawer-panel { display: none; }
-        .drawer-panel.active { display: block; }
 
         .new-chat-btn { width: 100%; padding: 11px; border: none; border-radius: var(--r-sm); background: linear-gradient(135deg, var(--accent), var(--accent-strong)); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-soft); margin-bottom: 12px; transition: transform 0.2s var(--ease); font-family: inherit; }
         .new-chat-btn:active { transform: scale(0.97); }
@@ -183,18 +178,9 @@
         .history-del { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; border: none; background: transparent; color: var(--text-3); cursor: pointer; font-size: 13px; display: grid; place-items: center; transition: all 0.18s var(--ease); }
         .history-del:hover { background: rgba(255, 69, 69, 0.15); color: #ff6b6b; }
 
-        .kb-select { width: 100%; padding: 9px 12px; border-radius: var(--r-sm); border: 1px solid var(--glass-border-soft); background: var(--glass-bg); color: var(--text-1); font-size: 13.5px; margin-bottom: 10px; font-family: inherit; }
-        .kb-actions { display: flex; gap: 8px; margin-bottom: 12px; }
-        .kb-btn { flex: 1; padding: 9px; border: 1px solid var(--glass-border-soft); border-radius: var(--r-sm); background: var(--glass-bg); color: var(--text-1); font-size: 13px; cursor: pointer; transition: all 0.2s var(--ease); font-family: inherit; }
-        .kb-btn:hover { background: var(--glass-bg-hover); }
-        .kb-btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-strong)); color: #fff; border: none; }
-        .kb-doc { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 10px 12px; border-radius: var(--r-sm); background: var(--glass-bg); border: 1px solid var(--glass-border-soft); margin-bottom: 6px; }
-        .kb-doc-name { font-size: 13px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .kb-doc-del { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; border: none; background: transparent; color: var(--text-3); cursor: pointer; font-size: 13px; display: grid; place-items: center; transition: all 0.18s var(--ease); }
-        .kb-doc-del:hover { background: rgba(255, 69, 69, 0.15); color: #ff6b6b; }
         .empty-hint { color: var(--text-3); font-size: 13px; text-align: center; padding: 26px 8px; }
 
-        /* ── 自定义确认弹窗（极简对称） ── */
+        /* ── Custom confirm dialog ── */
         .confirm-scrim {
             position: fixed; inset: 0; z-index: 60;
             background: rgba(0, 0, 0, 0.08);
@@ -279,25 +265,9 @@
                 <h2>菜单</h2>
                 <button class="drawer-close" id="drawerClose" aria-label="关闭">&#10005;</button>
             </div>
-            <div class="drawer-tabs">
-                <button class="drawer-tab active" data-tab="history">&#128172; 对话记录</button>
-                <button class="drawer-tab" data-tab="kb">&#128218; 知识库</button>
-            </div>
             <div class="drawer-body">
-                <div class="drawer-panel active" id="historyPanel">
-                    <button class="new-chat-btn" id="newChatBtn">＋ 新建对话</button>
-                    <div id="historyList"></div>
-                </div>
-                <div class="drawer-panel" id="kbPanel">
-                    <select class="kb-select" id="kbSelect"></select>
-                    <div class="kb-actions">
-                        <button class="kb-btn primary" id="kbUploadBtn">上传文件</button>
-                        <button class="kb-btn" id="kbCreateBtn">新建库</button>
-                        <button class="kb-btn" id="kbClearBtn">清空</button>
-                    </div>
-                    <input type="file" id="kbFileInput" multiple style="display:none">
-                    <div id="kbDocList"></div>
-                </div>
+                <button class="new-chat-btn" id="newChatBtn">＋ 新建对话</button>
+                <div id="historyList"></div>
             </div>
         </aside>
 
@@ -314,7 +284,7 @@
 
     <div class="toast glass-bar" id="toast" role="status"></div>
 
-    <!-- 自定义确认弹窗（替代原生 confirm） -->
+    <!-- 自定义确认弹窗 -->
     <div class="confirm-scrim" id="confirmScrim"></div>
     <div class="confirm-dialog" id="confirmDialog" role="alertdialog" aria-modal="true">
         <div class="confirm-body" id="confirmBody"></div>
@@ -329,11 +299,10 @@
     var isLoading = false;
     var currentSessionId = null;
     var messages = [];
-    var currentKbId = 'default';
 
     function genId() { return 's-' + Date.now() + '-' + Math.random().toString(36).substring(2, 11); }
 
-    // ── 渲染 ──
+    // ── Render ──
     function welcomeHtml() {
         return '<div class="message agent"><div class="avatar">AI</div>' +
             '<div class="message-content">你好，我是 Agent Loop。有什么可以帮你的？</div></div>';
@@ -357,7 +326,7 @@
         area.scrollTop = area.scrollHeight;
     }
 
-    // ── 发送 ──
+    // ── Send ──
     function sendMessage(msgText) {
         var input = document.getElementById('messageInput');
         var message = msgText || input.value.trim();
@@ -371,7 +340,7 @@
         fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, sessionId: currentSessionId, knowledgeBaseId: currentKbId })
+            body: JSON.stringify({ message: message, sessionId: currentSessionId })
         })
         .then(function(res) { return res.json(); })
         .then(function(data) { addMessage(data.response || '无响应', 'agent'); })
@@ -395,7 +364,7 @@
         }
     }
 
-    // ── 会话切换 ──
+    // ── Session switching ──
     function newChat() {
         currentSessionId = genId();
         messages = [];
@@ -424,7 +393,7 @@
             });
     }
 
-    // ── 会话列表 ──
+    // ── Session list ──
     function refreshSessions() {
         fetch('/api/sessions').then(function(r) { return r.json(); }).then(function(data) {
             var list = document.getElementById('historyList');
@@ -444,63 +413,8 @@
         });
     }
 
-    // ── 知识库 ──
-    function loadKbs() {
-        fetch('/api/rag/kbs').then(function(r) { return r.json(); }).then(function(data) {
-            var sel = document.getElementById('kbSelect');
-            var kbs = data.knowledgeBases || [];
-            if (kbs.length === 0) { sel.innerHTML = ''; currentKbId = 'default'; loadKbDocs(); return; }
-            sel.innerHTML = '';
-            for (var i = 0; i < kbs.length; i++) {
-                var o = document.createElement('option');
-                o.value = kbs[i].id; o.textContent = kbs[i].name || kbs[i].id;
-                sel.appendChild(o);
-            }
-            if (!kbs.some(function(k) { return k.id === currentKbId; })) currentKbId = kbs[0].id;
-            sel.value = currentKbId;
-            loadKbDocs();
-        }).catch(function() { loadKbDocs(); });
-    }
-    function loadKbDocs() {
-        fetch('/api/rag/list?knowledgeBaseId=' + encodeURIComponent(currentKbId)).then(function(r) { return r.json(); }).then(function(data) {
-            var box = document.getElementById('kbDocList');
-            var docs = data.documents || [];
-            if (docs.length === 0) { box.innerHTML = '<div class="empty-hint">该知识库暂无文档</div>'; return; }
-            var html = '';
-            for (var i = 0; i < docs.length; i++) {
-                var d = docs[i];
-                var name = d.source || d.id || '文档';
-                html += '<div class="kb-doc"><span class="kb-doc-name">' + escapeHtml(name) + '</span>' +
-                    '<button class="kb-doc-del" data-doc="' + d.id + '" title="删除">&#10005;</button></div>';
-            }
-            box.innerHTML = html;
-        });
-    }
-    function uploadKbFiles(files) {
-        if (!files || !files.length) return;
-        var fd = new FormData();
-        for (var i = 0; i < files.length; i++) fd.append('files', files[i]);
-        fd.append('knowledgeBaseId', currentKbId);
-        fetch('/api/rag/upload', { method: 'POST', body: fd })
-            .then(function(r) { return r.json(); })
-            .then(function(d) { showToast(d.message || '上传完成'); loadKbDocs(); })
-            .catch(function(err) { showToast('上传失败：' + err.message, true); });
-    }
-    function createKb() {
-        var name = prompt('知识库名称：', '我的知识库');
-        if (!name) return;
-        fetch('/api/rag/kbs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, description: '' }) })
-            .then(function() { loadKbs(); showToast('已创建知识库'); });
-    }
-    async function clearKb() {
-        if (!await showConfirm('清空当前知识库的所有文档？')) return;
-        fetch('/api/rag/clear?knowledgeBaseId=' + encodeURIComponent(currentKbId), { method: 'DELETE' })
-            .then(function() { loadKbDocs(); showToast('知识库已清空'); });
-    }
-
-    // ── 抽屉（常驻侧栏，按钮开关） ──
-    function openDrawer(tab) {
-        if (tab) setTab(tab);
+    // ── Drawer ──
+    function openDrawer() {
         document.getElementById('drawer').classList.add('open');
         document.getElementById('drawer').setAttribute('aria-hidden', 'false');
     }
@@ -508,20 +422,12 @@
         document.getElementById('drawer').classList.remove('open');
         document.getElementById('drawer').setAttribute('aria-hidden', 'true');
     }
-    function toggleDrawer(tab) {
+    function toggleDrawer() {
         if (document.getElementById('drawer').classList.contains('open')) closeDrawer();
-        else openDrawer(tab);
-    }
-    function setTab(tab) {
-        var tabs = document.querySelectorAll('.drawer-tab');
-        for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.tab === tab);
-        document.getElementById('historyPanel').classList.toggle('active', tab === 'history');
-        document.getElementById('kbPanel').classList.toggle('active', tab === 'kb');
-        if (tab === 'history') refreshSessions();
-        if (tab === 'kb') loadKbDocs();
+        else openDrawer();
     }
 
-    // ── 工具 ──
+    // ── Utilities ──
     function formatContent(content) {
         return String(content)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -545,7 +451,7 @@
         toast._timer = setTimeout(function() { toast.classList.remove('show'); }, 3200);
     }
 
-    // ── 自定义确认弹窗（替代原生 confirm） ──
+    // ── Confirm dialog ──
     function showConfirm(message) {
         return new Promise(function(resolve) {
             var scrim = document.getElementById('confirmScrim');
@@ -565,12 +471,8 @@
         });
     }
 
-    // ── 事件绑定 ──
+    // ── Event bindings ──
     var inputEl = document.getElementById('messageInput');
-
-    // 输入法组合状态跟踪：组合中按 Enter 应确认候选词而非发送。
-    // 部分输入法在确认候选时 isComposing 不可靠，且确认后会紧跟一个未报组合状态的
-    // Enter，因此用 _composing 标记 + 组合结束后极短的锁定窗口做双重保险。
     var composingLockUntil = 0;
     inputEl.addEventListener('compositionstart', function() { inputEl._composing = true; });
     inputEl.addEventListener('compositionend', function() {
@@ -580,7 +482,6 @@
 
     document.getElementById('composer').addEventListener('submit', function(e) {
         e.preventDefault();
-        // 防御：组合未结束或刚结束的短暂窗口内不发送
         if (inputEl._composing || Date.now() < composingLockUntil) return;
         sendMessage();
     });
@@ -591,38 +492,23 @@
         e.preventDefault();
         sendMessage();
     });
+
     document.getElementById('clearBtn').addEventListener('click', async function() {
         if (!await showConfirm('确定清空当前对话？')) return;
         messages = []; currentSessionId = genId(); renderChat(); showToast('已清空对话');
     });
-    document.getElementById('menuBtn').addEventListener('click', function() { toggleDrawer('history'); });
+    document.getElementById('menuBtn').addEventListener('click', toggleDrawer);
     document.getElementById('drawerClose').addEventListener('click', closeDrawer);
     document.getElementById('newChatBtn').addEventListener('click', newChat);
 
-    document.querySelectorAll('.drawer-tab').forEach(function(t) {
-        t.addEventListener('click', function() { setTab(t.dataset.tab); });
-    });
     document.getElementById('historyList').addEventListener('click', function(e) {
         var del = e.target.closest('[data-del]');
         if (del) { e.stopPropagation(); deleteSession(del.getAttribute('data-del')); return; }
         var item = e.target.closest('.history-item');
         if (item) switchSession(item.getAttribute('data-id'));
     });
-    document.getElementById('kbSelect').addEventListener('change', function(e) { currentKbId = e.target.value; loadKbDocs(); });
-    document.getElementById('kbUploadBtn').addEventListener('click', function() { document.getElementById('kbFileInput').click(); });
-    document.getElementById('kbFileInput').addEventListener('change', function(e) { uploadKbFiles(e.target.files); e.target.value = ''; });
-    document.getElementById('kbCreateBtn').addEventListener('click', createKb);
-    document.getElementById('kbClearBtn').addEventListener('click', clearKb);
-    document.getElementById('kbDocList').addEventListener('click', async function(e) {
-        var del = e.target.closest('[data-doc]');
-        if (del && await showConfirm('删除该文档？')) {
-            fetch('/api/rag/delete?id=' + encodeURIComponent(del.getAttribute('data-doc')), { method: 'DELETE' })
-                .then(function() { loadKbDocs(); });
-        }
-    });
 
-    // ── 初始化 ──
-    loadKbs();
+    // ── Init ──
     fetch('/api/sessions').then(function(r) { return r.json(); }).then(function(data) {
         var sessions = data.sessions || [];
         if (sessions.length > 0) switchSession(sessions[0].sessionId);

@@ -14,8 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AgentContext {
 
     private final String sessionId;
-    private final String knowledgeBaseId;
-    private final boolean useKnowledgeBase;
     private final String traceId;
     private final int maxSteps;
     private final long stepTimeoutMs;
@@ -35,8 +33,6 @@ public class AgentContext {
 
     public static class Builder {
         private String sessionId;
-        private String knowledgeBaseId;
-        private boolean useKnowledgeBase = true;
         private int maxSteps = 10;
         private long stepTimeoutMs = 30_000;
         private long totalTimeoutMs = 120_000;
@@ -44,8 +40,6 @@ public class AgentContext {
         Builder() {}
 
         public Builder sessionId(String sessionId) { this.sessionId = sessionId; return this; }
-        public Builder knowledgeBaseId(String knowledgeBaseId) { this.knowledgeBaseId = knowledgeBaseId; return this; }
-        public Builder useKnowledgeBase(boolean useKnowledgeBase) { this.useKnowledgeBase = useKnowledgeBase; return this; }
         public Builder maxSteps(int maxSteps) { this.maxSteps = maxSteps; return this; }
         public Builder stepTimeoutMs(long stepTimeoutMs) { this.stepTimeoutMs = stepTimeoutMs; return this; }
         public Builder totalTimeoutMs(long totalTimeoutMs) { this.totalTimeoutMs = totalTimeoutMs; return this; }
@@ -59,8 +53,6 @@ public class AgentContext {
 
     private AgentContext(Builder b) {
         this.sessionId = b.sessionId != null ? b.sessionId : UUID.randomUUID().toString();
-        this.knowledgeBaseId = b.knowledgeBaseId;
-        this.useKnowledgeBase = b.useKnowledgeBase;
         this.traceId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         this.maxSteps = b.maxSteps;
         this.stepTimeoutMs = b.stepTimeoutMs;
@@ -73,9 +65,6 @@ public class AgentContext {
         // Seed metadata
         metadata.put("traceId", traceId);
         metadata.put("sessionId", this.sessionId);
-        if (knowledgeBaseId != null) {
-            metadata.put("knowledgeBaseId", knowledgeBaseId);
-        }
 
         // Set MDC for logging
         MDC.put("traceId", traceId);
@@ -132,8 +121,6 @@ public class AgentContext {
     // ── Accessors ────────────────────────────────────────────────────────────
 
     public String getSessionId() { return sessionId; }
-    public String getKnowledgeBaseId() { return knowledgeBaseId; }
-    public boolean isUseKnowledgeBase() { return useKnowledgeBase; }
     public String getTraceId() { return traceId; }
 
     // ── Cleanup ──────────────────────────────────────────────────────────────
