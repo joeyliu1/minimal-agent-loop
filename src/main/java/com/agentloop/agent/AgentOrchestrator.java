@@ -11,6 +11,7 @@ import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.MessageAggregator;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * State-machine-driven agent orchestrator.
@@ -102,12 +104,25 @@ public class AgentOrchestrator {
      * Blocks up to ctx.totalTimeoutMs via an internal executor.
      */
     public String execute(AgentContext ctx) {
+        return execute(ctx, AgentStreamObserver.NO_OP, false);
+    }
+
+    /**
+     * Execute the same Agent Loop while forwarding real model deltas and state
+     * changes to the caller. Tool-call responses are aggregated before tool
+     * execution, so streaming does not bypass the loop.
+     */
+    public String executeStreaming(AgentContext ctx, AgentStreamObserver observer) {
+        return execute(ctx, observer != null ? observer : AgentStreamObserver.NO_OP, true);
+    }
+
+    private String execute(AgentContext ctx, AgentStreamObserver observer, boolean streaming) {
         log.info("AgentOrchestrator.execute: sessionId={}, traceId={}",
                 ctx.getSessionId(), ctx.getTraceId());
 
         ctx.markLoopStart();
 
-        Future<String> future = loopExecutor.submit(() -> runLoop(ctx));
+        Future<String> future = loopExecutor.submit(() -> runLoop(ctx, observer, streaming));
         try {
             return future.get(ctx.getTotalTimeoutMs(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
@@ -134,13 +149,14 @@ public class AgentOrchestrator {
     // Core loop
     // ═══════════════════════════════════════════════════════════════════════
 
-    private String runLoop(AgentContext ctx) {
+    private String runLoop(AgentContext ctx, AgentStreamObserver observer, boolean streaming) {
         Timer.Sample loopTimer = metrics.startLoopTimer();
         boolean success = false;
 
         try {
             // INIT → THINKING
             ctx.transitionTo(AgentLoopState.THINKING);
+            observer.onState(AgentLoopState.THINKING, ctx.getCurrentStep());
 
             // Load session history from memory (inserted BEFORE current user message)
             int historySize = loadSessionHistory(ctx);
@@ -166,7 +182,13 @@ public class AgentOrchestrator {
                     // PHASE: THINKING — call LLM
                     log.debug("Step {}: calling LLM (state={})",
                             ctx.getCurrentStep(), ctx.getState());
-                    ChatResponse response = callLlm(ctx);
+                    observer.onState(AgentLoopState.THINKING, ctx.getCurrentStep());
+                    if (streaming && ctx.getCurrentStep() > 1) {
+                        observer.onReset();
+                    }
+                    ChatResponse response = streaming
+                            ? callLlmStreaming(ctx, observer)
+                            : callLlm(ctx);
 
                     if (response == null || response.getResult() == null) {
                         log.warn("Step {}: empty response from LLM", ctx.getCurrentStep());
@@ -183,6 +205,7 @@ public class AgentOrchestrator {
                                 ctx.getCurrentStep(), content != null ? content.length() : 0);
 
                         ctx.transitionTo(AgentLoopState.RESPONDING);
+                        observer.onState(AgentLoopState.RESPONDING, ctx.getCurrentStep());
                         persistMessages(ctx);
 
                         success = true;
@@ -195,6 +218,7 @@ public class AgentOrchestrator {
 
                     ctx.addMessage(assistantMessage);
                     ctx.transitionTo(AgentLoopState.TOOL_CALLING);
+                    observer.onState(AgentLoopState.TOOL_CALLING, ctx.getCurrentStep());
 
                     List<Message> toolResults = toolExecutor.execute(assistantMessage, response, ctx);
 
@@ -206,6 +230,7 @@ public class AgentOrchestrator {
 
                     // Back to THINKING for next iteration
                     ctx.transitionTo(AgentLoopState.THINKING);
+                    observer.onState(AgentLoopState.THINKING, ctx.getCurrentStep());
                     metrics.updateContextSize(ctx.getMessages().size());
 
                 } catch (Exception e) {
@@ -267,6 +292,73 @@ public class AgentOrchestrator {
                 lastError != null ? lastError.getMessage() : "unknown");
         throw new RuntimeException(lastError != null ? lastError.getMessage() : "LLM call failed",
                 lastError);
+    }
+
+    private ChatResponse callLlmStreaming(AgentContext ctx, AgentStreamObserver observer) {
+        Exception lastError = null;
+        for (int attempt = 1; attempt <= llmRetries; attempt++) {
+            try {
+                if (attempt > 1) {
+                    long delayMs = 500L * (1L << (attempt - 2));
+                    log.info("Retry {}/{} for streaming LLM call after {}ms",
+                            attempt, llmRetries, delayMs);
+                    Thread.sleep(delayMs);
+                }
+
+                AtomicReference<ChatResponse> aggregated = new AtomicReference<>();
+                var responseFlux = chatClient.prompt()
+                        .messages(ctx.getMessages())
+                        .advisors(new SimpleLoggerAdvisor())
+                        .stream()
+                        .chatResponse()
+                        .doOnNext(chunk -> {
+                            if (chunk != null && chunk.getResult() != null) {
+                                String delta = chunk.getResult().getOutput().getText();
+                                if (delta != null && !delta.isEmpty()) {
+                                    observer.onToken(delta);
+                                }
+                            }
+                        });
+
+                new MessageAggregator()
+                        .aggregate(responseFlux, aggregated::set)
+                        .blockLast();
+
+                ChatResponse response = aggregated.get();
+                if (response == null) {
+                    throw new IllegalStateException("Streaming model returned no response");
+                }
+                return response;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Streaming LLM call interrupted", e);
+            } catch (Exception e) {
+                if (isStreamClientDisconnect(e)) {
+                    throw new RuntimeException("SSE client disconnected", e);
+                }
+                lastError = e;
+                log.warn("Streaming LLM attempt {}/{} failed at step {}: {}",
+                        attempt, llmRetries, ctx.getCurrentStep(), e.getMessage());
+                if (attempt < llmRetries) {
+                    observer.onReset();
+                }
+            }
+        }
+        throw new RuntimeException(
+                lastError != null ? lastError.getMessage() : "Streaming LLM call failed",
+                lastError);
+    }
+
+    private boolean isStreamClientDisconnect(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current.getMessage() != null
+                    && current.getMessage().contains("SSE client disconnected")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private String userFacingError(Throwable error) {

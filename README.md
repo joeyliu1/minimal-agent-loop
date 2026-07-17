@@ -54,6 +54,7 @@
 - 四节可切换课程及独立的动手实验
 - 一键载入实验提示词和持久化课程完成状态
 - Markdown 风格回答、代码块和长文本换行
+- 通过 SSE 实时推送 Agent 状态和模型 token，完成后恢复 Markdown 渲染
 - Agent 执行中的加载状态与 Loop 阶段动画
 - 桌面、平板和移动端响应式布局
 
@@ -89,12 +90,12 @@
 一次对话请求的执行链路如下：
 
 ```text
-浏览器 POST /api/chat
-  └─ WebController.chat(...)
-      └─ AgentService.execute(...)
+浏览器 POST /api/chat/stream
+  └─ WebController.chatStream(...)
+      └─ AgentService.executeStreaming(...)
           ├─ 创建 AgentContext
           ├─ 加入当前 UserMessage
-          └─ AgentOrchestrator.execute(...)
+          └─ AgentOrchestrator.executeStreaming(...)
               ├─ 读取最近 20 条会话消息
               ├─ 调用 LLM
               ├─ 是否产生工具调用？
@@ -266,6 +267,32 @@ Content-Type: application/json
 }
 ```
 
+### 流式 Agent 对话
+
+```http
+POST /api/chat/stream
+Accept: text/event-stream
+Content-Type: application/json
+
+{
+  "message": "解释 Agent Loop",
+  "sessionId": "learning-session-01"
+}
+```
+
+接口使用 SSE 按顺序发送以下事件：
+
+| 事件 | 数据 | 说明 |
+| --- | --- | --- |
+| `ready` | `sessionId` | SSE 连接已建立 |
+| `state` | `state`、`step` | Agent 当前状态与步骤 |
+| `token` | `content` | 模型生成的增量文本 |
+| `reset` | `reason` | 重试或工具调用后清除上一轮临时输出 |
+| `done` | `response` | 完整回答，用于最终 Markdown 渲染 |
+| `error` | `message` | 流式执行异常 |
+
+前端默认使用该接口。原有 `/api/chat` 同步接口继续保留，方便命令行调用和兼容非流式客户端。
+
 ### 会话接口
 
 | 方法 | 路径 | 说明 |
@@ -330,7 +357,7 @@ curl http://localhost:8085/actuator/prometheus
 
 1. 通过 SSE 推送真实 Agent 步骤与工具执行事件
 2. 在 Loop 观察器中展示工具名称、参数、耗时和返回结果
-3. 增加流式模型响应与停止执行功能
+3. 增加主动停止执行与客户端断开后的任务取消功能
 4. 增加人工确认节点（Human in the Loop）
 5. 增加长期记忆、任务规划和多 Agent 协作
 

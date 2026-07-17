@@ -3,6 +3,7 @@ package com.agentloop.service;
 import com.agentloop.agent.AgentContext;
 import com.agentloop.agent.AgentMetrics;
 import com.agentloop.agent.AgentOrchestrator;
+import com.agentloop.agent.AgentStreamObserver;
 import com.agentloop.config.AgentProperties;
 import com.agentloop.memory.ChatMemoryService;
 import org.slf4j.Logger;
@@ -47,6 +48,20 @@ public class AgentService {
     // ── Public API ───────────────────────────────────────────────────────────
 
     public String execute(String userMessage, String sessionId) {
+        return execute(userMessage, sessionId, null);
+    }
+
+    public String executeStreaming(
+            String userMessage,
+            String sessionId,
+            AgentStreamObserver observer) {
+        return execute(userMessage, sessionId, observer);
+    }
+
+    private String execute(
+            String userMessage,
+            String sessionId,
+            AgentStreamObserver streamObserver) {
         long startTime = System.currentTimeMillis();
         log.info("AgentService.execute: msg='{}' sessionId={}",
                 truncate(userMessage, 100), sessionId);
@@ -64,7 +79,9 @@ public class AgentService {
 
         try {
             // Execute via orchestrator (state machine)
-            String response = orchestrator.execute(ctx);
+            String response = streamObserver == null
+                    ? orchestrator.execute(ctx)
+                    : orchestrator.executeStreaming(ctx, streamObserver);
 
             // Persist to memory
             memoryService.addMessage(sessionId, "user", userMessage);

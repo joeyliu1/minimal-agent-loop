@@ -395,6 +395,18 @@
         .msg-content pre { margin: 9px 0; padding: 12px; overflow-x: auto; border-radius: 9px; color: #dcece2; background: #172a21; text-align: left; }
         .msg-content pre code { padding: 0; color: inherit; background: transparent; }
         .msg-row.user .msg-content code { color: #f1ffd2; background: rgba(255,255,255,.12); }
+        .msg-content.streaming { white-space: pre-wrap; }
+        .stream-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.05em;
+            margin-left: 2px;
+            vertical-align: -2px;
+            border-radius: 2px;
+            background: var(--green);
+            animation: stream-cursor-blink .7s steps(1) infinite;
+        }
+        @keyframes stream-cursor-blink { 50% { opacity: 0; } }
 
         .typing-row { display: flex; align-items: center; gap: 9px; padding: 9px 0; }
         .typing-bubble { display: flex; align-items: center; gap: 5px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 5px 15px 15px 15px; background: #f8faf7; }
@@ -763,18 +775,140 @@
         addMessage(message, 'user');
         input.value = '';
         setLoading(true);
-        fetch('/api/chat', {
+        fetch('/api/chat/stream', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream'
+            },
             body: JSON.stringify({ message: message, sessionId: currentSessionId })
         })
         .then(function(response) {
             if (!response.ok) throw new Error('请求失败（' + response.status + '）');
-            return response.json();
+            if (!response.body) throw new Error('当前浏览器不支持流式响应');
+            return consumeAgentStream(response);
         })
-        .then(function(data) { addMessage(data.response || '没有收到 Agent 的回答。', 'agent'); })
-        .catch(function(error) { addMessage('执行失败：' + error.message, 'agent'); showToast(error.message, true); })
+        .catch(function(error) {
+            showToast(error.message, true);
+            addMessage('执行失败：' + error.message, 'agent');
+        })
         .finally(function() { setLoading(false); refreshSessions(); });
+    }
+
+    async function consumeAgentStream(response) {
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder('utf-8');
+        var buffer = '';
+        var streamView = null;
+        var streamError = null;
+        var finalResponse = '';
+
+        try {
+            while (true) {
+                var result = await reader.read();
+                buffer += decoder.decode(result.value || new Uint8Array(), { stream: !result.done });
+                buffer = buffer.replace(/\r\n/g, '\n');
+
+                var boundary;
+                while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+                    var block = buffer.slice(0, boundary);
+                    buffer = buffer.slice(boundary + 2);
+                    var event = parseSseEvent(block);
+                    if (!event) continue;
+
+                    if (event.name === 'state') {
+                        applyStreamState(event.data.state);
+                    } else if (event.name === 'token') {
+                        if (!streamView) streamView = beginAgentStream();
+                        appendAgentToken(streamView, event.data.content || '');
+                    } else if (event.name === 'reset') {
+                        if (streamView) resetAgentStream(streamView);
+                    } else if (event.name === 'done') {
+                        finalResponse = event.data.response || streamView && streamView.text || '';
+                    } else if (event.name === 'error') {
+                        streamError = event.data.message || 'Agent stream failed';
+                    }
+                }
+
+                if (result.done) break;
+            }
+        } catch (error) {
+            if (!streamView) throw error;
+            streamError = error.message || '流式连接已中断';
+        }
+
+        if (!streamView) streamView = beginAgentStream();
+        if (!finalResponse) finalResponse = streamView.text || (streamError ? '执行失败：' + streamError : '没有收到 Agent 的回答。');
+        finishAgentStream(streamView, finalResponse);
+        if (streamError) showToast(streamError, true);
+    }
+
+    function parseSseEvent(block) {
+        if (!block || block.charAt(0) === ':') return null;
+        var name = 'message';
+        var dataLines = [];
+        block.split('\n').forEach(function(line) {
+            if (line.indexOf('event:') === 0) name = line.slice(6).trim();
+            if (line.indexOf('data:') === 0) dataLines.push(line.slice(5).trimStart());
+        });
+        if (!dataLines.length) return null;
+        var raw = dataLines.join('\n');
+        try { return { name: name, data: JSON.parse(raw) }; }
+        catch (error) { return { name: name, data: { content: raw, message: raw } }; }
+    }
+
+    function applyStreamState(state) {
+        if (state === 'TOOL_CALLING') setLoopStep('act');
+        else if (state === 'RESPONDING') setLoopStep('answer');
+        else if (state === 'THINKING') setLoopStep('think');
+    }
+
+    function beginAgentStream() {
+        var area = document.getElementById('chatArea');
+        var typing = area.querySelector('.typing-row');
+        if (typing) typing.remove();
+        clearInterval(loopTimer);
+        setLoopStep('answer');
+
+        var timestamp = now();
+        var row = document.createElement('div');
+        row.className = 'msg-row agent';
+        row.innerHTML = '<span class="msg-avatar">AI</span>' +
+            '<div class="msg-body"><div class="msg-meta"><b>Agent</b><span>' + timestamp + '</span></div>' +
+            '<div class="msg-content streaming"></div></div>';
+        var output = row.querySelector('.msg-content');
+        var textNode = document.createTextNode('');
+        var cursor = document.createElement('span');
+        cursor.className = 'stream-cursor';
+        cursor.setAttribute('aria-hidden', 'true');
+        output.appendChild(textNode);
+        output.appendChild(cursor);
+        area.appendChild(row);
+        area.scrollTop = area.scrollHeight;
+        return { area: area, output: output, textNode: textNode, cursor: cursor, timestamp: timestamp, text: '' };
+    }
+
+    function appendAgentToken(view, token) {
+        token = String(token);
+        // Providers may emit either deltas or the full accumulated text.
+        view.text = token.indexOf(view.text) === 0 && token.length > view.text.length
+                ? token
+                : view.text + token;
+        view.textNode.nodeValue = view.text;
+        view.area.scrollTop = view.area.scrollHeight;
+    }
+
+    function resetAgentStream(view) {
+        view.text = '';
+        view.textNode.nodeValue = '';
+    }
+
+    function finishAgentStream(view, text) {
+        view.cursor.remove();
+        view.output.classList.remove('streaming');
+        view.output.innerHTML = formatContent(text);
+        messages.push({ type: 'agent', content: text, ts: view.timestamp });
+        view.area.scrollTop = view.area.scrollHeight;
     }
 
     function setLoading(loading) {
